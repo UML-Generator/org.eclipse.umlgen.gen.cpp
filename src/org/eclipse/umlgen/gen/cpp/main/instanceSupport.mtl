@@ -1,0 +1,141 @@
+[comment]
+  Copyright 2016 Daniel Kaminski de Souza and Marcelo Giesteira Campani
+  All rights reserved.  This program and the accompanying materials
+  are made available under the terms of the Eclipse Public License 1.0
+  
+  Any license can be applied to the files generated with this template.
+  
+  author <a href="mailto:dani_kase@yahoo.com.br">Daniel Kaminski de Souza</a>
+  author <a href="mailto:marcelogcampani@gmail.com">Marcelo Giesteira Campani</a>
+[/comment]
+[module instanceSupport('http://www.eclipse.org/uml2/5.0.0/UML')]
+[import org::eclipse::umlgen::gen::cpp::main::common/]
+
+[query public getCompositeProperty(anInstanceAssociation: InstanceSpecification) : Property =
+    anInstanceAssociation.getAssociation().memberEnd->any(p | p.aggregation = AggregationKind::composite)
+/]
+[query public getListOfCompositeSlots(aClassInstance: InstanceSpecification) : Sequence(Slot) =
+    aClassInstance.getCompositeInstanceAssociations().getCompositeSlotImpl()->select(takeInstance() <> aClassInstance)
+/]
+[query public getListOfCompositeInstances(aClassInstance: InstanceSpecification) : Sequence(InstanceSpecification) =
+    aClassInstance.getListOfCompositeSlots().takeInstance()->asOrderedSet()->asSequence()
+/]
+[query public getCompositeSlotImpl(aCompositeAssociationInstance : InstanceSpecification) : Slot =
+    aCompositeAssociationInstance.getLinkedSlots()->any(sl | sl.getProperty().aggregation <> AggregationKind::none)
+/]
+[query public getCompositeInstance(aCompositeAssociationInstance : InstanceSpecification) : InstanceSpecification =
+    aCompositeAssociationInstance.getCompositeSlotImpl().takeInstance()
+/]
+[query public isInstantiable(anInstance : InstanceSpecification) : Boolean =
+    not anInstance.hasThisStereotype('dontInstantiate')
+/]
+[query public isStatic(anInstance : InstanceSpecification) : Boolean =
+    anInstance.hasThisStereotype('static')
+/]
+[query public isConst(anInstance : InstanceSpecification) : Boolean =
+    anInstance.hasThisStereotype('const')
+/]
+[query public isBigBangBorn(anInstance : InstanceSpecification) : Boolean =
+    anInstance.isConst() or anInstance.isStatic()
+/]
+[query public takeInstances(anInstanceSpecification: InstanceSpecification) : Sequence(InstanceSpecification) =
+anInstanceSpecification.eAllContents(InstanceValue).instance/]
+
+[query public takeInstance(aSlot: Slot) : InstanceSpecification =
+aSlot.eAllContents(InstanceValue).instance->any(true)/]
+
+[query public takeAssociatedInstancesFromNonAssociationInstance(anInstanceSpecification: InstanceSpecification) : Sequence(InstanceSpecification) =
+anInstanceSpecification.getInstanceAssociations()->including(anInstanceSpecification).takeInstances()->select(ins | ins <> anInstanceSpecification)/]
+
+[query public takeAssociationSlotsFromNonAssociationInstance(anInstanceSpecification: InstanceSpecification) : Sequence(Slot) =
+anInstanceSpecification.getInstanceAssociations()->including(anInstanceSpecification).slot->select(sl | sl.takeInstance() <> anInstanceSpecification)/]
+
+[query public isCompositionRelation(anInstanceAssociation: InstanceSpecification) : Boolean =
+     anInstanceAssociation.getCompositeProperty() <> null
+/]
+
+[query public getAssociation(anAssociationInstance: InstanceSpecification) : Association =
+anAssociationInstance.classifier->filter(Association)->any(true)
+/]
+[query public isConnecting(anAssociationInstance: InstanceSpecification, aClassInstance: InstanceSpecification) : Boolean =
+    anAssociationInstance.getLinkedInstances()->includes(aClassInstance)
+/]
+[query public getInstanceAssociations(aClassInstance: InstanceSpecification) : Sequence(InstanceSpecification) =
+    associationInstances()->select(ai | ai.isConnecting(aClassInstance))
+/]
+[query public getCompositeInstanceAssociations(aClassInstance: InstanceSpecification) : Sequence(InstanceSpecification) =
+    aClassInstance.getInstanceAssociations()->select(isCompositionRelation())
+/]
+
+
+[query public getLinkedInstances(anAssociationInstance: InstanceSpecification) : Set(InstanceSpecification) = 
+	anAssociationInstance.eAnnotations->any(source = 'InstanceEnd').references
+/]
+
+[query public getLinkedSlots(anAssociationInstance: InstanceSpecification) : Bag(Slot) =
+anAssociationInstance.getLinkedInstances()->including(anAssociationInstance).slot->select(sl | anAssociationInstance.getLinkedInstances()->includes(sl.takeInstance()))
+/]
+[query public canopyInstancesNotConst(traceabilityContext: OclAny) : Sequence(InstanceSpecification) = canopyInstances()->select(ci | not ci.isConst())/]
+[query public canopyInstances(traceabilityContext: OclAny) : Sequence(InstanceSpecification) =(nonAssociationInstances()->asSet() - compositionAssociationInstances().getCompositeInstance()->asSet())->asSequence()->sortedBy(name)/]
+[query public listOfOtherClassInstances(is : InstanceSpecification) : Sequence(InstanceSpecification) = classInstances()->excluding(is)/]
+[query public classInstances(traceabilityContext: OclAny) : Sequence(InstanceSpecification) = getAllInstanceSpecifications()->select(is | is.classifier->any(oclIsTypeOf(Class)) <> null)/]
+[query public getAllInstanceSpecifications(traceabilityContext: OclAny) : Sequence(InstanceSpecification) = current(Model).eAllContents(InstanceSpecification)->select(not oclIsTypeOf(EnumerationLiteral))/]
+[query public getAllSlots(traceabilityContext: OclAny) : Sequence(Slot) = current(Model).eAllContents(Slot)/]
+[query public getClass(is: InstanceSpecification) : Class = is.classifier->filter(Class)->any(true)/]
+[query public isAssociationInstance(is: InstanceSpecification) : Boolean = (is.classifier->any(oclIsTypeOf(Association)) <> null)/]
+[query public associationInstances(traceabilityContext: OclAny) : Sequence(InstanceSpecification) = getAllInstanceSpecifications()->select(is | is.isAssociationInstance())/]
+[query public compositionAssociationInstances(traceabilityContext: OclAny) : Sequence(InstanceSpecification) = associationInstances()->select(isCompositionRelation())/]
+[query public nonAssociationInstances(traceabilityContext: OclAny) : Sequence(InstanceSpecification) = getAllInstanceSpecifications()->select(is | not is.isAssociationInstance())/]
+[query public getNonAssociationSlots(is: InstanceSpecification) : Set(Slot) = is.slot->select(slot | slot.getProperty().association =null)/]
+
+[query public assembleListOfAssociationSlots(is: InstanceSpecification) : Sequence(Slot) =
+is.getListOfCompositeSlots()->sortedBy(definingFeature.name)
+/]
+[query public assembleListOfNonAssociationSlots(is: InstanceSpecification) : Sequence(Slot) =
+is.getNonAssociationSlots()->asBag()->sortedBy(definingFeature.name)
+/]
+
+[query public assembleListOfAssociationParams(is: InstanceSpecification, level: String) : Sequence(String) =
+is.assembleListOfAssociationSlots().constructComposite(level)
+/]
+
+[query public assembleListOfNonAssociationParams(is: InstanceSpecification) : Sequence(String) =
+is.assembleListOfNonAssociationSlots().getOpaqueExpression()._body
+/]
+
+[query public assembleStringOfNonAssociationParams(is: InstanceSpecification) : String =
+''+is.assembleListOfNonAssociationParams()->sep(', ')
+/]
+
+[query public assembleListOfParams(is: InstanceSpecification, level: String) : String =
+''+is.assembleListOfAssociationParams(level)->union(is.assembleListOfNonAssociationParams())->sep(',\n'+level)
+/]
+[query public getItsClasses(is : InstanceSpecification) : Set(Class) = is.classifier->select(oclIsTypeOf(Class))/]  
+[query public getItsInterfaces(is : InstanceSpecification) : Set(Interface) = is.classifier->select(oclIsTypeOf(Interface))/]
+[query public getProperty(sl: Slot) : Property = 
+	let dF: StructuralFeature = sl.definingFeature->any(df|df.oclIsTypeOf(Property)) in (	
+		if dF = null then
+			stop('Stopped prematurely the code generation!\n\tSlot: '+sl.toString()+'\n\tInstance: '+sl.owningInstance.toString())
+		else
+			dF.oclAsType(Property)
+		endif
+	)
+/]
+[query public getInstances(sl: Slot) : Sequence(InstanceSpecification) = sl.value.eGet('instance')/]
+[query public getInstance(aSlot: Slot) : InstanceSpecification = aSlot.getInstances()->any(true)/]
+[query public constructComposite(aSlot: Slot, level: String) : String = 
+    'new '+aSlot.getProperty().type.name+
+    if aSlot.getInstance().getListOfCompositeSlots()->isEmpty() then
+        '('+aSlot.getInstance().assembleStringOfNonAssociationParams()+')'
+    else
+        '\n'+
+        level+'(\n'+
+        level+'\t'+aSlot.getInstance().assembleListOfParams(level+'\t')+'\n'+
+        level+')'
+    endif
+    +'/* '+aSlot.getInstance().name+' */'
+/]
+[query public getOpaqueExpression(sl: Slot) : OpaqueExpression = sl.value->filter(OpaqueExpression)->any(true)/]
+[query public getLinkedSlotsImp(givenSlot: Slot, anAssociationInstance: InstanceSpecification) : Set(Slot) =
+    givenSlot->including(givenSlot.getInstance().slot->any(sl | anAssociationInstance.getAssociation().memberEnd->includes(sl.definingFeature)))
+/]

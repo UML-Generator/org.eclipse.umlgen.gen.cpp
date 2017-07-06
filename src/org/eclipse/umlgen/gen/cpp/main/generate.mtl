@@ -1,0 +1,122 @@
+[comment]
+  Copyright 2016 Daniel Kaminski de Souza and Marcelo Giesteira Campani
+  All rights reserved.  This program and the accompanying materials
+  are made available under the terms of the Eclipse Public License 1.0
+  
+  Any license can be applied to the files generated with this template.
+  
+  author <a href="mailto:dani_kase@yahoo.com.br">Daniel Kaminski de Souza</a>
+  author <a href="mailto:marcelogcampani@gmail.com">Marcelo Giesteira Campani</a>
+[/comment]
+[module generate('http://www.eclipse.org/uml2/5.0.0/UML')]
+
+[import org::eclipse::umlgen::gen::cpp::main::common/]
+[import org::eclipse::umlgen::gen::cpp::main::interfaceBody/]
+[import org::eclipse::umlgen::gen::cpp::main::classBody/]
+[import org::eclipse::umlgen::gen::cpp::main::Enumerations/]
+[import org::eclipse::umlgen::gen::cpp::main::DataTypes/]
+[import org::eclipse::umlgen::gen::cpp::main::PrimitiveTypes/]
+[import org::eclipse::umlgen::gen::cpp::main::vectorTemplate/]
+[import org::eclipse::umlgen::gen::cpp::main::mainFile/]
+[import org::eclipse::umlgen::gen::cpp::main::instanceSupport/]
+[import org::eclipse::umlgen::gen::cpp::main::classSupport/]
+[import org::eclipse::umlgen::gen::cpp::main::genMemCheck/]
+[import org::eclipse::umlgen::gen::cpp::main::generateTerminalIO/]
+
+[template public generateModel(md : Model)]	
+	[comment @main /]
+	[comment][file ('act.txt', false, 'UTF-8')]
+	[for (cl: Class | getAllClasses())]
+		[cl.name/]
+	[/for]
+	[/file][/comment]
+	[for (cl: Class | getAllClasses())]
+		[cl.generateClass()/]
+	[/for]
+	[comment][/file][/comment]	
+	[let pkg: Package = md.getNearestPackage()]
+		[pkg.generateDataTypes('Resources')/]
+		[pkg.generateEnumerations('Resources')/]
+		[pkg.generatePrimitiveTypes('Resources')/]
+		[pkg.vectorTemplate('Resources')/]
+		[pkg.generateTerminalIO('Resources')/]
+			[if getProperty('memoryLeakTest') = 'ON']
+		[pkg.genMemCheck('Resources')/]
+			[/if]
+		[pkg.mainFile()/]
+	[/let]
+[/template]
+[query public getAllDownClassesToDeclare(c: Class) : Sequence(Class) = 
+	if c.getAssociationsToDeclare().class->isEmpty() then
+		Sequence{}
+	else
+		c.getAssociationsToDeclare().class->union(c.getAssociationsToDeclare().class.getAllDownClassesToDeclare())
+	endif
+/]
+
+[template public generateClass(c : Class)]
+	[if (c.eClass().name <> 'OpaqueBehavior')] [comment] This is to avoid the generation of the OpaqueBehavior file.[/comment]
+		[file (c.getFullPathFile()+'.hpp'.trim(), false)]
+[let defString: String = includeSTRING(c.name)]
+#ifndef [defString/]
+#define [defString/]
+
+/*[(
+	if c.ownedTemplateSignature <> null then 
+		'template' 
+	else 
+		if c.templateBinding->isEmpty() then 
+			'header' 
+		else 
+			'binding' 
+		endif
+	endif
+)/]*/
+
+[_commentFileBlock()/]
+[c.packageBlock()/]
+
+[c.importBlockForHeader()/]
+
+[_commentBodyBlock()/]
+[c.generateClass(
+	if c.ownedTemplateSignature <> null then 
+		'template' 
+	else 
+		if c.templateBinding->isEmpty() then 
+			'header' 
+		else 
+			'binding' 
+		endif
+	endif
+)/]
+#endif //[defString/]
+[/let]
+		[/file]
+[if (c.ownedTemplateSignature = null and  c.templateBinding->isEmpty())]
+		[file (c.getFullPathFile()+'.cpp'.trim(), false)]
+[_commentFileBlock()/]
+[c.packageBlock()/]
+
+[c.importBlockForSource()/]
+// [protected ('Provide additional includes here for class '+c.name+'.')]
+// [/protected]
+
+[_commentBodyBlock()/]
+[c.generateClass('source')/]
+		[/file]
+	[/if]
+[/if]
+[/template]
+
+[template public generateInterface(i : Interface, is: InstanceSpecification)]
+	[file (i.getFullPathFile().trim(), false)]
+[_commentFileBlock()/]
+[i.packageBlock()/]
+
+[comment][importBlock()/][/comment]
+
+[_commentBodyBlock()/]
+[i.generateInterfaceBody()/]
+	[/file]
+[/template]

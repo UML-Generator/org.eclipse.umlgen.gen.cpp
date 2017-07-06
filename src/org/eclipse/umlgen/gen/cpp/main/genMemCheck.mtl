@@ -1,0 +1,149 @@
+[comment]
+  Copyright 2016 Daniel Kaminski de Souza and Marcelo Giesteira Campani
+  All rights reserved.  This program and the accompanying materials
+  are made available under the terms of the Eclipse Public License 1.0
+  
+  Any license can be applied to the files generated with this template.
+  
+  author <a href="mailto:dani_kase@yahoo.com.br">Daniel Kaminski de Souza</a>
+  author <a href="mailto:marcelogcampani@gmail.com">Marcelo Giesteira Campani</a>
+[/comment]
+[module genMemCheck('http://www.eclipse.org/uml2/5.0.0/UML')]
+
+
+[template public genMemCheck(modelPkg: Package, pkg : String)]
+	[file(modelPkg.name+'\\'+pkg+'\\'+'MemCheck.hpp', false)]
+#ifndef MEMCHECK_H
+#define MEMCHECK_H
+
+#include <cstddef> // For size_t
+
+// Usurp the new operator (both scalar and array versions)
+void* operator new(std::size_t, const char*, long);
+void* operator new['[]'/](std::size_t, const char*, long);
+#define new new (__FILE__, __LINE__)
+
+extern bool traceFlag;
+#define TRACE_ON() traceFlag = true
+#define TRACE_OFF() traceFlag = false
+
+extern bool activeFlag;
+#define MEM_ON() activeFlag = true
+#define MEM_OFF() activeFlag = false
+
+#endif // MEMCHECK_H ///:~
+	[/file]
+	[file(modelPkg.name+'\\'+pkg+'\\'+'MemCheck.cpp', false)]
+
+#include <cstdio>
+#include <cstdlib>
+#include <cassert>
+#include <cstddef>
+#include <iostream>
+
+using namespace std;
+#undef new
+
+// Global flags set by macros in MemCheck.h
+bool traceFlag = true;
+bool activeFlag = false;
+
+namespace {
+
+// Memory map entry type
+struct Info {
+	void* ptr;
+	const char* file;
+	long line;
+};
+
+// Memory map data
+const size_t MAXPTRS = 10000u;
+Info memMap['[MAXPTRS]'/];
+size_t nptrs = 0;
+
+// Searches the map for an address
+int findPtr(void* p) {
+	for(size_t i = 0; i < nptrs; ++i)
+		if(memMap['[i]'/].ptr == p)
+			return i;
+	return -1;
+}
+
+void delPtr(void* p) {
+	int pos = findPtr(p);
+	assert(pos >= 0);
+	// Remove pointer from map
+	for(size_t i = pos; i < nptrs-1; ++i)
+		memMap['[i]'/] = memMap['[i+1]'/];
+	--nptrs;
+}
+
+// Dummy type for static destructor
+struct Sentinel {
+	~Sentinel() {
+	if(nptrs > 0) {
+		cout << "Leaked memory at:" << endl;
+		for(size_t i = 0; i < nptrs; ++i)
+			cout << "\t" << memMap['[i]'/].ptr << " (file: " << memMap['[i]'/].file << ", line " << memMap['[i]'/].line << ")" << endl;
+	}
+	else
+		cout << "No user memory leaks!" << endl;
+	}
+};
+
+// Static dummy object
+Sentinel s;
+
+} // End anonymous namespace
+
+// Overload scalar new
+void*
+operator new(size_t siz, const char* file, long line) {
+	void* p = malloc(siz);
+	if(activeFlag) {
+		if(nptrs == MAXPTRS) {
+			cout << "memory map too small (increase MAXPTRS)" << endl;
+			exit(1);
+		}
+		memMap['[nptrs]'/].ptr = p;
+		memMap['[nptrs]'/].file = file;
+		memMap['[nptrs]'/].line = line;
+		++nptrs;
+	}
+	if(traceFlag) {
+		cout << "Allocated "<< (unsigned)siz <<" bytes at address "<< p << " ";
+		cout << "(file: "<< file <<", line: "<< line << ")" << endl;
+	}
+	return p;
+}
+
+// Overload array new
+void*
+operator new['[]'/](size_t siz, const char* file, long line) {
+	return operator new(siz, file, line);
+}
+
+// Override scalar delete
+void operator delete(void* p, size_t a) {
+	int i;
+	i = findPtr(p);
+	if(i >= 0) {
+		free(p);
+		assert(nptrs > 0);
+		delPtr(p);
+		if(traceFlag)
+			cout << "Deleted memory at address "<< p << " ";
+			cout << "(file: "<< memMap['[i]'/].file <<", line: "<< memMap['[i]'/].line << ")" << endl;
+	}
+	else if(!p && activeFlag)
+		cout << "Attempt to delete unknown pointer: "<< p << endl;
+}
+
+// Override array delete
+void operator delete['[]'/](void* p) {
+	operator delete(p);
+} ///:~
+
+	[/file]
+[/template]

@@ -1,0 +1,24 @@
+[comment]
+  Copyright 2016 Daniel Kaminski de Souza and Marcelo Giesteira Campani
+  All rights reserved.  This program and the accompanying materials
+  are made available under the terms of the Eclipse Public License 1.0
+  
+  Any license can be applied to the files generated with this template.
+  
+  author <a href="mailto:dani_kase@yahoo.com.br">Daniel Kaminski de Souza</a>
+  author <a href="mailto:marcelogcampani@gmail.com">Marcelo Giesteira Campani</a>
+[/comment]
+[module interfaceBody('http://www.eclipse.org/uml2/5.0.0/UML')/]
+[import org::eclipse::umlgen::gen::cpp::main::common/]
+
+
+[template public generateInterfaceBody(i : Interface)]
+public interface [i.name.toUpperFirst()/] {
+
+[for (o : Operation | i.ownedOperation)]
+    /**
+[o.parameters()/]
+    public [o.returnTypeOperation()/]([o.getInParameter()/]);
+[/for]
+}
+[/template]

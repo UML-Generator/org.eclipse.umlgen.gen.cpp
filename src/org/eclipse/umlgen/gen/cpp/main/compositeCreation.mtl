@@ -1,0 +1,75 @@
+[comment]
+  Copyright 2016 Daniel Kaminski de Souza and Marcelo Giesteira Campani
+  All rights reserved.  This program and the accompanying materials
+  are made available under the terms of the Eclipse Public License 1.0
+  
+  Any license can be applied to the files generated with this template.
+  
+  author <a href="mailto:dani_kase@yahoo.com.br">Daniel Kaminski de Souza</a>
+  author <a href="mailto:marcelogcampani@gmail.com">Marcelo Giesteira Campani</a>
+[/comment]
+[module compositeCreation('http://www.eclipse.org/uml2/5.0.0/UML')/]
+[import org::eclipse::umlgen::gen::cpp::main::instanceSupport/]
+[import org::eclipse::umlgen::gen::cpp::main::classSupport/]
+[import org::eclipse::umlgen::gen::cpp::main::propertySupport/]
+[import org::eclipse::umlgen::gen::cpp::main::common/]
+
+[query public Instances(givenClass: Class) : Sequence(InstanceSpecification) = getAllInstanceSpecifications()->select(is | is.getClass() = givenClass)/]
+
+[query public getConstructors(c: Class) : Set(Operation) = c.ownedOperation->select(o | o.name = c.name)/]
+
+[comment]'anAssociatedVector<'+aProperty.type.name+', '+aProperty.getOtherMemberEnd().type.name+', '+'&'+aProperty.type.name+'::'+aProperty.getOtherMemberEnd().name[/comment]
+
+[template public closeMutualAssociation(aProperty : Property)]
+	[if aProperty.hasMultipleItems()]
+		[let list: String = 'this->'+aProperty.propertyListName()]
+	for (uint8_t i = 0; i < [list/]->size; i++){
+		if ([list/]->at(i) not_eq nullptr)
+			[list/]->at(i)->[aProperty.getOtherMemberEnd().name/] = this;
+	}
+		[/let]
+	[else]
+	if (this->[aProperty.name/] not_eq nullptr){
+		[let otherMemberEnd: Property = aProperty.getOtherMemberEnd()]
+		[if otherMemberEnd.hasMultipleItems()]
+		[let list: String = 'this->'+aProperty.name+'->'+otherMemberEnd.propertyListName()]
+		for (uint8_t i = 0; i < [list/]->size; i++)
+			[list/]->at(i) = this;
+		[/let]
+		[else]
+		this->[aProperty.name/]->[otherMemberEnd.name/] = this;
+		[/if]
+		[/let]
+	}
+	[/if]
+[/template]
+
+[template public instantiateCompositeProperty(prop : Property, aString : String)]
+		[if prop.hasMultipleItems()]
+	[aString/][prop.propertyListName()/] = [insertGivenAndUpperize(prop.propertyListName())/];
+		[else]
+	[aString/][prop.name/] = [insertGivenAndUpperize(prop.name)/];
+		[/if]
+[/template]
+
+[template public instantiateCompositeImpl(list : Collection(Property))]
+	[for (prop: Property  | list)]
+[prop.instantiateCompositeProperty('this->')/][if prop.isComposite and not prop.isSingleNavigable()][prop.closeMutualAssociation()/][/if]
+	[/for]
+[/template]
+[template public instantiateComposite(c : Class, identifyer: String)]
+{
+[let bg : Bag(Property) = c.getCurrentNonDerivedClassItems()->select(p | not p.hasThisStereotype('debug'))]
+[instantiateCompositeImpl(c.getAllClassItensImpl(bg))/][/let]
+[let bg : Bag(Property) = c.getCurrentNonDerivedClassItems()->select(p | p.hasThisStereotype('debug'))]
+[if not bg->isEmpty()]
+	[assembleDebugNoElse(instantiateCompositeImpl(c.getAllClassItensImpl(bg)).trim(), identifyer)/]
+[/if][/let]
+[for (aDerivedProperty: Property | c.getCurrentDerivedClassItems()->select(defaultValue <> null and not hasThisStereotype('debug'))->sortedBy(name))]
+	this->[aDerivedProperty.propertyCheckListName()/] = [aDerivedProperty.defaultValue.eGet('value')/];
+[/for]
+[let op: Operation = c.getCustomConstructor()]
+[op.getOpBody()/]
+[/let]
+}
+[/template]

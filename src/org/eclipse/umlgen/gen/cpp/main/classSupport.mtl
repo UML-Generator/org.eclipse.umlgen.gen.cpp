@@ -1,0 +1,295 @@
+[comment]
+  Copyright 2016 Daniel Kaminski de Souza and Marcelo Giesteira Campani
+  All rights reserved.  This program and the accompanying materials
+  are made available under the terms of the Eclipse Public License 1.0
+  
+  Any license can be applied to the files generated with this template.
+  
+  author <a href="mailto:dani_kase@yahoo.com.br">Daniel Kaminski de Souza</a>
+  author <a href="mailto:marcelogcampani@gmail.com">Marcelo Giesteira Campani</a>
+[/comment]
+[module classSupport('http://www.eclipse.org/uml2/5.0.0/UML')]
+
+[import org::eclipse::umlgen::gen::cpp::main::propertySupport/]
+[import org::eclipse::umlgen::gen::cpp::main::instanceSupport/]
+[import org::eclipse::umlgen::gen::cpp::main::common/]
+
+[query public addAllChildren(ac: Class) : Sequence(Class) =
+    Sequence{ac}->union(ac.classChildren().addAllChildren())
+/]
+[query public classChildren(ac: Class) : Sequence(Class) =
+    ac.getCompositeAssociationsToDeclare().type.oclAsType(Class)
+/]
+
+[template public templateSignature(c : Class)]
+<[for(aParameter : TemplateParameter | c.ownedTemplateSignature.parameter) before('class ') separator(', ')][aParameter.parameteredElement.eGet('name')/][/for]>
+[/template]
+
+[template public importBlockForSource(c : Class)]
+[assembleInclude(c.name)/]
+[c.importBlockForChildren(c)/]
+[for (aClassToInclude: Class | c.elementImport.importedElement->select(ie | ie.oclIsTypeOf(Class)).oclAsType(Class)->sortedBy(name))]
+[assembleInclude(aClassToInclude.prepareInclude(c))/]
+[/for]
+[/template]
+
+[template public importBlockForChildren(c : Class)]
+[for (toImport: Class | c.classChildren()->asOrderedSet())]
+[assembleInclude(toImport.prepareInclude(c))/]
+[/for]
+[/template]
+[query public minimizeInclude(from: Sequence(Package), to: Sequence(Package)) : Sequence(Sequence(Package)) =
+	if (from->size() = 0 or to->size() = 0) then
+		Sequence{from, to}	
+	else
+		let fromFirst: Package = from->first() in
+			let toFirst: Package = to->first() in
+				if (fromFirst <> toFirst)then
+					Sequence{from, to}
+				else
+					minimizeInclude(from->excluding(fromFirst), to->excluding(toFirst))
+				endif
+	endif
+
+/]
+[query public prepareIncludeFromPackage(to: Class, from: Package) : String =
+	let minSeq: Sequence(Sequence(Package)) = minimizeInclude(from.getAllPackagesI(), to.getAllPackages()) in
+		let fromSeq: Sequence(Package) = minSeq->first() in
+			let toSeq: Sequence(Package) = minSeq->last() in
+				let fromSeqSize: Integer = fromSeq->size() in
+					let toSeqSize: Integer = toSeq->size() in
+						if (fromSeqSize > toSeqSize) then
+							goBack(fromSeqSize - toSeqSize)	
+						else 
+							''
+						endif
+						+toSeq.name->including(to.name)->sep('\\')
+/]
+[query public prepareInclude(to: Class, from: Class) : String =
+	prepareIncludeFromPackage(to, from.getNearestPackage())
+/]
+[comment][query public classInclude(classToInclude: Class, ac: Class) : String =
+	ac.goBackN(0) + classToInclude.getFullPathFile()
+/][/comment]
+[template public importBlockForHeader(c : Class)]
+[let toInclude : Sequence(String) = 
+	c.superClass
+	->union(c.getPropertiesToForwardDeclare().type.oclAsType(Class)->select(c | not c.templateBinding->isEmpty()))
+	->union(c.getListItemsToInclude())
+	->union(c.getAllOperations().ownedParameter->select(op | op.type.oclIsKindOf(Class)).type.oclAsType(Class)).prepareInclude(c)
+	->asOrderedSet()->asSequence()->sortedBy(toString())
+	->including(c.goBackN(1)+'Resources\\PrimitiveTypes')
+	->including(c.goBackN(1)+'Resources\\DataTypes')
+	->including(c.goBackN(1)+'Resources\\Enumerations')
+	->including(c.goBackN(1)+'Resources\\vectorTemplate')
+	->including(c.goBackN(1)+'Resources\\TerminalIO')		]
+	[for (toImport: String | toInclude)]
+[assembleInclude(toImport)/]
+	[/for]
+[/let]
+// [protected ('Provide additional headers here for class '+c.name+'.')]
+// [/protected]
+[/template]
+
+[query public addAllSupers(ac: Class) : Bag(Class) =
+    Bag{ac}->union(ac.superClass->asBag().addAllSupers())
+/]
+
+[query public getCompositeAssociationsToDeclare(ac: Class) : Sequence(Property) =
+    ac.getAssociationsToDeclare()->select(isComposite)
+/]
+
+[query public hasDeclaredAssociations (c: Class) : Boolean = 
+not c.getCompositeAssociationsToDeclare()->isEmpty()/]
+
+[query public getCustomConstructor (c: Class) : Operation = 
+c.ownedOperation->any(name = c.name)/]
+
+[query public getCustomDestructor (c: Class) : Operation = 
+c.ownedOperation->any(name = '~'+c.name)/]
+
+[query public isDestructorNeeded(c: Class) : Boolean = 
+    if c.hasDeclaredAssociations() or c.needsVirtualDestructor() or c.getCustomDestructor() <> null then
+        true
+    else
+        false
+    endif
+/]
+
+[query public isConstructorNeeded(c: Class) : Boolean = 
+    if not c.addAllSupers().getAllClassItens()->isEmpty() or c.getCustomConstructor() <> null then
+        true
+    else
+        false
+    endif
+/]
+[query public getDerivedClasses (ac: Class) : Sequence(Class) = 
+	getAllClasses()->select(superClass->any( ss | ss = ac) <> null)
+/]
+
+[query public needsVirtualDestructor (c: Class) : Boolean = 
+not c.getDerivedClasses()->isEmpty()/]
+[comment]c.getDerivedClasses()->any(dc | dc.isDestructorNeeded()) <> null/][/comment]
+
+[query public getBagOfFarMemberEnds(c: Class) : Bag(Property) = 
+    c.getAssociations().getFarMemberEnd(c)
+/]
+[query public getBagOfNearMemberEnds(c: Class) : Bag(Property) = 
+    c.getAssociations().getNearMemberEnd(c)
+/]
+[query public getFarMemberEnd(a: Association, nearClass: Class) : Property = 
+	let firsMemberEnd: Property = a.memberEnd->at(1) in
+    if (firsMemberEnd = a.memberEnd->at(2)) then
+		firsMemberEnd
+	else
+		a.memberEnd->any(p | p.type <> nearClass)
+	endif
+/]
+[query public getNearMemberEnd(a: Association, c: Class) : Property = 
+    a.memberEnd->any(p | p.type = c)
+/]
+[query public getBagOfFarMemberEndsNonEnum(c: Class) : Bag(Property) = 
+    c.getBagOfFarMemberEnds()->select(p | not p.type.oclIsKindOf(Enumeration))
+/]
+
+[query public checkToInclude(p: Property) : Boolean = 
+    p.hasMultipleItems() and p.isMutualNavigable()
+/]
+
+[query public getListItemsToInclude(c: Class) : Bag(Class) =
+	c.getBagOfFarMemberEndsNonEnum()->select(p | p.checkToInclude()).type/]
+
+[query public getPropertiesToForwardDeclare(c: Class) : Bag(Property) =
+	c.getUnsortedAssociationsToDeclare()->select(p | not p.checkToInclude())->union(c.getOwnedAttributesToForwardDeclare())/]
+
+[query public getOwnedAttributesToForwardDeclare(c: Class) : Bag(Property) =
+	c.getOwnedAttributes()->select(
+		not type.oclIsKindOf(Enumeration) and 
+		not type.oclIsKindOf(PrimitiveType) and 
+		not type.oclIsKindOf(DataType)
+	)
+/]
+
+[query public sortAssociationsToDeclare(aBag: Bag(Property)) : Sequence(Property) =
+	aBag->select(p | 		p.isComposite and	 	p.hasMultipleItems() and 		p.isMutualNavigable())->sortedBy(name)->union(
+	aBag->select(p | not 	p.isComposite and 		p.hasMultipleItems() and 		p.isMutualNavigable())->sortedBy(name)->union(
+	aBag->select(p | 		p.isComposite and	 	p.hasMultipleItems() and not 	p.isMutualNavigable())->sortedBy(name)->union(
+	aBag->select(p | not 	p.isComposite and 		p.hasMultipleItems() and not 	p.isMutualNavigable())->sortedBy(name)->union(
+	aBag->select(p | 		p.isComposite and not 	p.hasMultipleItems() and 		p.isMutualNavigable())->sortedBy(name)->union(
+	aBag->select(p | not 	p.isComposite and not 	p.hasMultipleItems() and 		p.isMutualNavigable())->sortedBy(name)->union(
+	aBag->select(p | 		p.isComposite and not 	p.hasMultipleItems() and not 	p.isMutualNavigable())->sortedBy(name)->union(
+	aBag->select(p | not 	p.isComposite and not 	p.hasMultipleItems() and not 	p.isMutualNavigable())->sortedBy(name))))))))
+/]
+[query public sortOwnedAttributes(aBag: Bag(Property)) : Sequence(Property) =
+	aBag->select(p | 		p.hasMultipleItems())->sortedBy(name)->union(
+	aBag->select(p | not	p.hasMultipleItems())->sortedBy(name))
+/]
+
+[query public isUnknownOwned (p: Property) : Boolean =
+p.isComposite and p.getOtherMemberEnd().isSingleNavigable()
+/]
+[query public getMutualAssociationsToDeclare(c: Class) : Bag(Property) = 
+    c.getBagOfFarMemberEndsNonEnum()->select(p | p.isMutualNavigable())
+/]
+[query public getUnsortedAssociationsToDeclare(c: Class) : Bag(Property) =
+	c.getBagOfFarMemberEndsNonEnum()->select(p | p.isSingleNavigable() or p.isMutualNavigable() or p.isUnknownOwned())/]
+[query public getOwnedAttributes(ac: Class) : Bag(Property) =
+    ac.attribute->asBag()->select(
+		association = null
+	)
+/]
+[query public getCurrentClassItems(ac : Class) : Bag(Property) =
+	ac.getUnsortedAssociationsToDeclare()->union(ac.getOwnedAttributes())   
+/]
+[query public getCurrentNonDerivedClassItems(ac : Class) : Bag(Property) =
+	ac.getCurrentClassItems()->select(ap | not ap.isDerived)
+/]
+[query public getCurrentDerivedClassItems(ac : Class) : Bag(Property) =
+	ac.getCurrentClassItems()->select(ap | ap.isDerived)
+/]
+[query public getAssociationsToDeclare(c: Class) : Sequence(Property) =
+	sortAssociationsToDeclare(c.getUnsortedAssociationsToDeclare())/]
+[query public getAllClassItensPlusSupers(ac : Class) : Bag(Property) =
+    ac.addAllSupers().getCurrentClassItems()
+/]
+
+[query public getAllNonDerivedClassItensNot(ac : Class, str: String) : Sequence(Property) =
+	ac.getAllNonDerivedClassItens()->select(p | not p.hasThisStereotype(str))
+/]
+[query public getAllNonDerivedClassItens(ac : Class) : Sequence(Property) =
+	ac.getAllClassItens()->select(ap | not ap.isDerived)
+/]
+[query public getAllClassItens(ac : Class) : Sequence(Property) =
+	getAllClassItensImpl(ac.getAllClassItensPlusSupers())
+/]
+
+[query public getAllClassItensImpl(aBag : Bag(Property) ) : Sequence(Property) =
+    sortAssociationsToDeclare(aBag->select(association <> null))->union(
+	sortOwnedAttributes(aBag->select(association = null)))
+/]
+
+[query public nonCanopySuperClassConstructorProto(ac : Class, isDebug: Boolean): String =
+	ac.name+'('+
+	if isDebug then 
+		ac.getAllNonDerivedClassItens()
+	else 
+		ac.getAllNonDerivedClassItensNot('debug') 
+	endif 
+	.plainDeclaration()->sep(', ')+')'
+/]
+
+[query public sortedSuperClasses(ac: Class) : OrderedSet(Class) =
+	ac.superClass->sortedBy(name)
+/]
+
+[template public buildSuperConstructor(c : Class, isDebug: Boolean)]
+	[let superClasses: OrderedSet(Class) = c.sortedSuperClasses()]
+		[if not superClasses->isEmpty()]
+			[for (superC : Class | superClasses) before(':') separator(',\n')]
+	[superC.nonCanopySuperClassConstructorProto(isDebug)/][/for]
+		[/if]
+	[/let]
+[/template]
+
+[query public constructorProtoForSource(ac : Class, ini: String) : String =
+	if ac.getAllClassItens()->any(p | p.hasThisStereotype('debug')) <> null then
+    	''+assembleDebug(
+			ac.constructorProtoImplIni(true, ini), 
+			ac.constructorProtoImplIni(false, ini),
+			'source'
+		)
+	else
+    	ac.constructorProtoImplIni(false, ini)
+	endif
+/]
+[query public checkIfAnyDebugItem(ac : Class) : Boolean =
+	ac.getAllClassItens()->any(p | p.hasThisStereotype('debug')) <> null
+/]
+[query public constructorProto(ac : Class, identifyer : String) : String =
+	if ac.checkIfAnyDebugItem() then
+    	''+assembleDebug(
+			ac.constructorProtoImpl(true), 
+			ac.constructorProtoImpl(false),
+			identifyer
+		)
+	else
+    	ac.constructorProtoImpl(false)+identifyer.checkCommaNeeded()
+	endif
+/]
+[query public constructorProtoImplIni(ac : Class, isDebug: Boolean, ini: String) : String =
+	ini+ac.constructorProtoImpl(isDebug)+'\n'+
+	ac.buildSuperConstructor(isDebug)
+/]
+[query public constructorProtoImpl(ac : Class, isDebug: Boolean) : String =
+	ac.name+'('+
+	if isDebug then 
+		ac.getAllNonDerivedClassItens()
+	else 
+		ac.getAllNonDerivedClassItensNot('debug') 
+	endif ->select(ap | not ap.isDerived) 
+	.propertyStringforProto()->sep(', ')+')'
+/]
+
+
+[query public getAllClasses(traceabilityContext: OclAny) : Sequence(Class) = current(Model).eAllContents(Class)->select(not oclIsKindOf(Behavior))/]
+[query public Instances(givenClass: Class) : Sequence(InstanceSpecification) = getAllInstanceSpecifications()->select(is | is.getClass() = givenClass)/]

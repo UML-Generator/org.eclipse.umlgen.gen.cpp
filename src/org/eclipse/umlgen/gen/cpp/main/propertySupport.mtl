@@ -1,0 +1,142 @@
+[comment]
+  Copyright 2016 Daniel Kaminski de Souza and Marcelo Giesteira Campani
+  All rights reserved.  This program and the accompanying materials
+  are made available under the terms of the Eclipse Public License 1.0
+  
+  Any license can be applied to the files generated with this template.
+  
+  author <a href="mailto:dani_kase@yahoo.com.br">Daniel Kaminski de Souza</a>
+  author <a href="mailto:marcelogcampani@gmail.com">Marcelo Giesteira Campani</a>
+[/comment]
+[module propertySupport('http://www.eclipse.org/uml2/5.0.0/UML')]
+
+[import org::eclipse::umlgen::gen::cpp::main::common/]
+
+[query public getClass(aProperty: Property) : Class =
+	aProperty.type.oclAsType(Class)
+/]
+[query public isAssociatedVector (aProperty : Property) : Boolean =
+	if aProperty.isMutualNavigable() and aProperty.hasMultipleItems() then
+		true	
+	else
+		false
+	endif
+/]
+[comment][query public isComposite(aProperty: Property) : Boolean = (aProperty.aggregation = AggregationKind::composite)/][/comment]
+[query public checkVectorProtoPtr(aProperty: Property) : String = 
+	if aProperty.hasMultipleItems() then
+		aProperty.assembleVectorProto(aProperty.association)
+	else
+		aProperty.getClass().name
+	endif
+	+'* '
+/]
+[comment]
+[0..1] propertyType* propertyName; //nullptr to be used for zero items
+[1..1] propertyType* propertyName;
+[x..*] aVector<propertyType*>* propertyNameList;
+[/comment]
+[query public propertyString(aProperty: Property) : String = 
+    if (aProperty.isStatic) then 'static ' else '' endif+
+	aProperty.parameterString(aProperty, aProperty.association)
+/]
+
+[query public isSingleNavigable(p: Property) : Boolean = p.isNavigable() and not p.getOtherMemberEnd().isNavigable()/]
+[query public isMutualNavigable(p: Property) : Boolean = (not p.isNavigable() and not p.getOtherMemberEnd().isNavigable()) or (p.isNavigable() and p.getOtherMemberEnd().isNavigable())/]
+
+[query public propertyStringforProto(aProperty: Property) : String = 
+    if (aProperty.hasMultipleItems()) then
+        aProperty.assembleVectorProtoPtr(aProperty.association)+' '+insertGivenAndUpperize(aProperty.propertyListName())
+    else
+        aProperty.assembleTypePointer(aProperty.association)+' '+insertGivenAndUpperize(aProperty.name)
+    endif
+/]
+[query public associationDeclaration(p: Property) : String = 
+p.associationDeclarationComment()+'\n'+
+'    '+p.publicProperty()
+/]
+[query public associationDeclarationComment(p: Property) : String = 
+'   /** \\brief Representation: '+p.getOtherMemberEnd().drawRelationShip(p)+'\n'+
+'    *\n'+
+'    *  Association Name: '+p.association.name+', attribute: '+p.name+'\n'+
+'    */'
+/]
+
+[template public propertyDeclaration(p: Property, visibility: String)]
+[let decString : String = visibility+': '+p.propertyString()]
+[if p.hasThisStereotype('debug')]
+[assembleDebugNoElse(decString, 'header')/]
+[else]
+[decString/];
+[/if]
+[/let]
+[/template]
+
+[query public publicProperty(p: Property) : String = 
+    p.propertyDeclaration('public')
+/]
+
+[query public protectedProperty(p: Property) : String = 
+    p.propertyDeclaration('protected')
+/]
+
+[query public privateProperty(p: Property) : String = 
+    p.propertyDeclaration('private')
+/]
+
+[query public plainDeclaration(ap: Property) : String =
+    'given'+ap.propertyCheckListName().toUpperFirst()
+/]
+[query public propertyCheckListName(aProperty: Property) : String=
+	if aProperty.hasMultipleItems() then
+		aProperty.propertyListName()
+	else
+		aProperty.name
+	endif
+/]
+[query public insertGivenAndUpperize(middle: String) : String = 
+    'given'+middle.toUpperFirst()
+/]
+[query public getOtherMemberEnd(aMemberEnd: Property) : Property = 
+    aMemberEnd.association.memberEnd->any(p | p <> aMemberEnd)
+/]
+[query public drawRelationShip(near: Property, far: Property) : String = 
+    near.drawLeftRelationShip(far)+'---'+near.drawRightRelationShip(far)
+/]
+[query public drawDiamond(p: Property) : String = 
+    if p.aggregation = AggregationKind::composite then 
+        '\\<C>'
+    else if p.aggregation = AggregationKind::shared then 
+        '\\<S>' 
+    else 
+        '' 
+    endif endif
+/]
+
+[query public drawLeftRelationShip(near: Property, far: Property) : String =
+    if far.aggregation = AggregationKind::none  then
+        if near.isNavigable() then
+        '<---'
+        else
+        '----'
+        endif
+    else 
+        far.drawDiamond()+if near.isNavigable() then '<' else '-' endif 
+    endif   
+/]
+
+[query public drawRightRelationShip(near: Property, far: Property) : String =
+    if near.aggregation = AggregationKind::none  then
+        if far.isNavigable() then
+        '--->'
+        else
+        '----'
+        endif
+    else 
+        if far.isNavigable() then 
+            '>'+near.drawDiamond()  
+        else 
+            '-'+near.drawDiamond() 
+        endif
+    endif   
+/]

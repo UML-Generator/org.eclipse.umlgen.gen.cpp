@@ -1,0 +1,366 @@
+[comment]
+  Copyright 2016 Daniel Kaminski de Souza and Marcelo Giesteira Campani
+  All rights reserved.  This program and the accompanying materials
+  are made available under the terms of the Eclipse Public License 1.0
+  
+  Any license can be applied to the files generated with this template.
+  
+  author <a href="mailto:dani_kase@yahoo.com.br">Daniel Kaminski de Souza</a>
+  author <a href="mailto:marcelogcampani@gmail.com">Marcelo Giesteira Campani</a>
+[/comment]
+[module common('http://www.eclipse.org/uml2/5.0.0/UML')/]
+
+[query public getInParameter(b : BehavioralFeature) : String =
+	getInParameters(b.ownedParameter)
+/]
+
+[query public assembleTypePointer(ap: ConnectableElement, association: Association) : String =
+ 	if ap.hasThisStereotype('const') then
+        'const '
+    else
+		''
+	endif+    
+	ap.type.name+
+    if association <> null or ap.hasThisStereotype('pointer') or ap.eClass() = Class then
+        '*'
+    else
+        ''
+    endif
+/]
+
+[query public parameterString(aParameter: ConnectableElement, aM: MultiplicityElement, association: Association) : String = 
+    if (aM.hasMultipleItems()) then
+        aParameter.assembleVectorProtoPtr(association)+aParameter.propertyListName()
+    else
+        aParameter.assembleTypePointer(association)+' '+aParameter.name
+    endif
+/]
+[query public assembleVectorProtoPtr(aProperty: ConnectableElement, association: Association) : String = 
+	aProperty.assembleVectorProto(association)+'* '
+/]
+
+[query public assembleVectorProto(aProperty: ConnectableElement, association: Association) : String = 
+	'aVector<'+aProperty.assembleTypePointer(association)+'>'
+/]
+
+[query public propertyListName(aConnectableElement: ConnectableElement) : String=
+	aConnectableElement.name+'List' 
+/]
+
+[template public getInParameters(parameterList : OrderedSet(Parameter))][comment][p.parameterString()/][/comment]
+[for (p : Parameter | parameterList) separator(',') ? (p.direction <> ParameterDirectionKind::return)][p.parameterString(p, null)/][comment][p.type.name/][if p.type.oclIsKindOf(Class) or p.hasThisStereotype('pointer')]*[/if] [p.name/][/comment][/for]
+[/template]
+
+[template public behavioralFeatureProtoWithoutReturn(b : BehavioralFeature)]
+[b.name/]([b.getInParameter()/])
+[/template]
+
+[query public hasMultipleItems(aMultiplicityElement: MultiplicityElement) : Boolean =
+    if (aMultiplicityElement.upper <> 1) then
+		true
+	else
+		false
+	endif
+/]
+
+[query public includeSTRING(s: String) : String = 
+'_'+s.toUpperCase()+'_HPP_'
+/]
+
+[query public assembleInclude(st: String) : String =
+	'#include "'+st+'.hpp"'
+/]
+[query public getFullPathFile(cl: Classifier) : String = 
+	cl.getAllPackages().name->sep('\\')+'\\'+cl.name
+/]
+[query public getAllPackages(cl: Classifier) : Sequence(Package) = 
+	cl.getNearestPackage().getAllPackagesI()
+/]
+[query public getAllPackagesI(fromPackage: Package) : Sequence(Package) = 
+	fromPackage.addAllSupers(Sequence{fromPackage})->reverse()
+/]
+[query public getOwnerPkg(aPackage: Package) : Package = 
+	aPackage.owner.oclAsType(Package)
+/]
+[query public addAllSupers(aPackage: Package, list: Sequence(Package)) : Sequence(Package) = 
+	if (aPackage.owner <> null) then
+		aPackage.getOwnerPkg().addAllSupers(list->including(aPackage))	
+	else
+		list
+	endif
+/]
+[query public hasThisStereotype(anElement: Element, givenName: String) : Boolean = 
+    anElement.getAppliedStereotypes()->any(name = givenName) <> null
+/]
+[template public assembleDebugNoElse(ifString: String, identifyer : String)]
+#if Build == Debug
+[ifString/][identifyer.checkCommaNeeded()/]
+#endif
+[/template]
+[template public assembleDebug(ifString: String, elseString: String, identifyer: String)]
+#if Build == Debug
+[ifString/][identifyer.checkCommaNeeded()/]
+#else
+[elseString/][identifyer.checkCommaNeeded()/]
+#endif
+[/template]
+
+[query public checkCommaNeeded(identifyier : String) : String =
+	if identifyier = 'header' then
+		';'		
+	else
+		''
+	endif
+/]
+
+[query public getClassList(traceabilityContext : OclAny) : Sequence(Class) =
+invoke('org.eclipse.umlgen.gen.cpp.main.Utility', 'getClassList()', Sequence{})
+/]
+[query public getClassStringList(traceabilityContext : OclAny) : Sequence(String) =
+invoke('org.eclipse.umlgen.gen.cpp.main.Utility', 'getClassStringList()', Sequence{})
+/]
+[query public getInstanceList(traceabilityContext : OclAny) : Sequence(InstanceSpecification) =
+(invoke('org.eclipse.umlgen.gen.cpp.main.Utility', 'getInstanceList()', Sequence{}))
+/]
+[query public getInstancePointersList(traceabilityContext : OclAny) : Sequence(String) =
+invoke('org.eclipse.umlgen.gen.cpp.main.Utility', 'getInstancePointersList()', Sequence{})
+/]
+[query public getInstances(traceabilityContext : OclAny) : Sequence(String) =
+invoke('org.eclipse.umlgen.gen.cpp.main.Utility', 'getInstances()', Sequence{})
+/]
+[query public getInstantiationStringList(traceabilityContext : OclAny) : Sequence(Element) =
+invoke('org.eclipse.umlgen.gen.cpp.main.Utility', 'getInstantiationStringList()', Sequence{})
+/]
+[query public getNonCompositeAssociationList(traceabilityContext : OclAny) : Sequence(InstanceSpecification) =
+invoke('org.eclipse.umlgen.gen.cpp.main.Utility', 'getNonCompositeAssociationList()', Sequence{})
+/]
+[query public getNonCompositeAssociationPath(traceabilityContext : OclAny) : Sequence(String) =
+invoke('org.eclipse.umlgen.gen.cpp.main.Utility', 'getNonCompositeAssociationPath()', Sequence{})
+/]
+[query public getDefinedInstancesList(traceabilityContext : OclAny) : Sequence(Element) =
+invoke('org.eclipse.umlgen.gen.cpp.main.Utility', 'getDefinedInstancesList()', Sequence{})
+/]
+[query public getIncludeList(traceabilityContext : OclAny) : Sequence(String) =
+invoke('org.eclipse.umlgen.gen.cpp.main.Utility', 'getIncludeList()', Sequence{})
+/]
+[query public getSortedIncludeList(traceabilityContext : OclAny) : Sequence(String) =
+	getIncludeList()->sortedBy(toString())
+/]
+[query public getNonCompositeAssociationProperty(traceabilityContext : OclAny) : Sequence(Property) =
+invoke('org.eclipse.umlgen.gen.cpp.main.Utility', 'getNonCompositeAssociationProperty()', Sequence{})
+/]
+
+  [comment]// Field descriptor #6 I
+  public static final int OK = 0;
+  
+  // Field descriptor #6 I
+  public static final int INFO = 1;
+  
+  // Field descriptor #6 I
+  public static final int WARNING = 2;
+  
+  // Field descriptor #6 I
+  public static final int ERROR = 4;
+  
+  // Field descriptor #6 I
+  public static final int CANCEL = 8;[/comment]
+[query public log(aString : String, status: Integer) : Boolean =
+invoke('org.eclipse.umlgen.gen.cpp.Activator', 'log(java.lang.String, java.lang.Integer)', Sequence{aString, status})
+/]
+
+[query public stop(aString : String) : Boolean =
+invoke('org.eclipse.umlgen.gen.cpp.Activator', 'stop(java.lang.String)', Sequence{aString})
+/]
+
+[template public addNonCompositeAssociation(givenInstance : InstanceSpecification, aPath: String)]
+[invoke('org.eclipse.umlgen.gen.cpp.main.Utility', 'addNonCompositeAssociation(java.lang.Object, java.lang.String)', Sequence{givenInstance, aPath})/]
+[/template]
+[template public addNonCompositeAssociation(givenInstance : InstanceSpecification, aPath: String, givenProperty : Element)]
+[invoke('org.eclipse.umlgen.gen.cpp.main.Utility', 'addNonCompositeAssociation(java.lang.Object, java.lang.String, java.lang.Object)', Sequence{givenInstance, aPath, givenProperty})/]
+[/template]
+[template public addClass(givenString: String)]
+[invoke('org.eclipse.umlgen.gen.cpp.main.Utility', 'addClass(java.lang.String)', Sequence{givenString})/]
+[/template]
+[template public addInstance(givenInstance: InstanceSpecification , givenString: String, givenClass: Class)]
+[invoke('org.eclipse.umlgen.gen.cpp.main.Utility', 'addInstance(java.lang.Object, java.lang.String, java.lang.Object)', Sequence{givenInstance, givenString, givenClass})/]
+[/template]
+[template public addInstancePointer(givenString: String)]
+[invoke('org.eclipse.umlgen.gen.cpp.main.Utility', 'addInstancePointer(java.lang.String)', Sequence{givenString})/]
+[/template]
+[template public addInstantiationString(givenString: String)]
+[invoke('org.eclipse.umlgen.gen.cpp.main.Utility', 'addInstantiationString(java.lang.String)', Sequence{givenString})/]
+[/template]
+[query public addDefinedInstance(givenInstance: Element) : Boolean =
+invoke('org.eclipse.umlgen.gen.cpp.main.Utility', 'addDefinedInstance(java.lang.Object)', Sequence{givenInstance})
+/]
+
+[query public addInclude(aString : String) : Boolean =
+invoke('org.eclipse.umlgen.gen.cpp.main.Utility', 'addInclude(java.lang.String)', Sequence{aString})
+/]
+[template public goBackN(cl: Classifier, number: Integer)]
+[goBack(cl.getAllPackages()->size()-number)/]
+[/template]
+[template public goBack(number: Integer)]
+[for (Sequence{1..number})]['..\\'/][/for]
+[/template]
+
+[template public packagePath(cl : Classifier)]
+[cl.getNearestPackage().normalizeName()/]
+[/template]
+
+[template public returnType(o : Operation)]
+[if (o.type.oclIsUndefined())]void[else]
+	[let returnParameter: ParameterableElement = o.parameterableElements()->select(eGet('direction').toString().matches('return'))->any(true)]
+[assembleCastType(o.type.name,returnParameter.hasThisStereotype('pointer'),returnParameter.hasThisStereotype('const'))/][/let][/if]
+[/template]
+
+[template public assembleCastType(s : String, isPointer : Boolean, isConst : Boolean)]
+[if isConst]const [/if][s/][if isPointer]*[/if]
+[/template]
+
+[template public returnTypeOperation(o : Operation)]
+[o.returnType()/] [o.name/]
+[/template]
+
+[template public packageBlock(cl : Classifier)]
+[if (not cl.getNearestPackage().oclIsUndefined())]//package [cl.packagePath()/];[/if]
+[/template]
+
+[template private normalizeName(element : NamedElement)]
+[if ((element.name = 'package') or (element.name = 'interface') or (element.name = 'class'))][element.name+'_'/][else][element.name/][/if]
+[/template]
+
+[template public _commentFileBlock(traceabilityContext : OclAny)]
+/**
+ * Generated with Acceleo
+ */
+[/template]
+
+[template public _commentBodyBlock(traceabilityContext : OclAny)]
+/**
+ * \authors Daniel Kaminski de Souza
+ * \authors Marcelo Giesteira Campani
+ */
+[/template]
+
+[query public inputParamOperationComment(p : Parameter) : String=
+'@param[in] '+p.name+': '+p.ownedComment._body->sep('; ')
+/]
+[query public outputParamOperationComment(p : Parameter) : String=
+'@param[out] '+p.name+': '+p.ownedComment._body->sep('; ')
+/]
+[query public inoutParamOperationComment(p : Parameter) : String=
+'@param[in,out] '+p.name+': '+p.ownedComment._body->sep('; ')
+/]
+[query public returnParamOperationComment(p : Parameter) : String=
+'@return '+p.name+': '+p.ownedComment._body->sep('; ')
+/]
+
+[query public opaqueBehaviors(o: BehavioralFeature) : Set(OpaqueBehavior) = o.method->filter(OpaqueBehavior)/]
+[query public opaqueBehavior(o: BehavioralFeature) : OpaqueBehavior = o.opaqueBehaviors()->any(true)/]
+
+[template public bfComment(bf : BehavioralFeature, str: String) ]
+[for (cmt : Comment | bf.ownedComment) before(str+'@detail\n'+str+'\t') separator(';\n'+str) after('\n'+str)][cmt._body/][/for]
+[/template]
+
+[template public bfCommentI(bf : BehavioralFeature, str: String) ]
+[let as : Sequence(String) = bf.parametersI()]
+	[if not as->isEmpty()]
+[as->sep(str,'\n'+str,'')/][/if]
+[/let]
+[/template]
+
+[query public parametersI(bf : BehavioralFeature) :Sequence(String)=
+	bf.ownedParameter->select(direction = ParameterDirectionKind::_in).inputParamOperationComment()->union(
+	bf.ownedParameter->select(direction = ParameterDirectionKind::inout).inoutParamOperationComment())->union(
+	bf.ownedParameter->select(direction = ParameterDirectionKind::return).returnParamOperationComment())
+/]
+
+[template public parameters(bf : BehavioralFeature) ]
+[let as : Sequence(String) = Sequence{bf.bfComment('\t* ')}->including(bf.bfCommentI('\t* '))]
+	[if as->select(s | s = '')->isEmpty()]
+[as->sep('','\n','\n')/][else][as/][/if][/let]	*/
+[/template]
+
+[template public receptionComment(r : Reception)]
+   /** \brief RECEPTION [r.name/].
+[r.parameters()/]
+[/template]
+
+[template public operationComment(o : Operation)]
+   /** \brief OPERATION [o.name/].
+[o.parameters()/]
+[/template]
+
+[template public receptionProto(r : Reception)]
+[r.behavioralFeatureProto('void '+r.name)/]
+[/template]
+
+[template public operationProto(o : Operation)]
+[o.behavioralFeatureProto(o.returnTypeOperation())/]
+[/template]
+
+[template public behavioralFeatureProto(o : BehavioralFeature, s : String)]
+[if o.isAbstract]virtual [/if][if o.isStatic]static [/if][s/]([o.getInParameter()/])[if o.isAbstract]=0[/if]
+[/template]
+
+[template public receptionBody(r : Reception, c : Class)]
+{
+[if r.opaqueBehavior() <> null]
+[r.opaqueBehavior()._body/]
+[else]
+	// [protected ('for reception '+r.name+' of the class '+c.name+'.')]
+	// TO_DO reception [c.name/]::[r.name/] should be implemented.
+	// [/protected]
+[/if]
+}
+[/template]
+
+[query public defaultReturn(aType: Type) : String =
+	if aType.name = 'String' then
+		'(String)""'
+	else if aType.eClass() = Enumeration then
+			aType.oclAsType(Enumeration).ownedLiteral->first().name
+		else 
+			'0'
+		endif
+	endif
+/]
+
+[query public getOpBody(o: Operation) : String = 
+if o.opaqueBehavior() = null then
+	o.constructorBody()
+else
+	o.opaqueBehavior()._body->first()
+endif
+/]
+[template public constructorBody(o : Operation)]
+	// [protected ('for constructor of the class '+o.class.name+'.')]
+	// TO_DO constructor [o.class.name/]::[o.name/] should be implemented.
+	// [/protected]
+[/template]
+[template public operationBody(o : Operation)]
+{
+[if o.opaqueBehavior() <> null]
+[o.getOpBody()/]
+[else]
+	[let returnTypeList  : Sequence(Type) = o.ownedParameter->select(direction = ParameterDirectionKind::return).type]
+		[if (returnTypeList->isEmpty())]
+// [protected ('for operation '+o.name+' without return of the class '+o.class.name+'.')]
+// TO_DO operation [o.class.name/]::[o.name/] should be implemented.
+// [/protected]
+		[else]
+			[if (returnTypeList->size() > 1)]
+// WARNING, too many return parameters!
+			[/if]
+			[let returnType  : Type = returnTypeList->first()]
+// [protected ('for operation '+o.name+' with return of the class '+o.class.name+'.')]
+// TO_DO operation [o.class.name/]::[o.name/] should be implemented.
+return [returnType.defaultReturn()/];
+// [/protected]
+			[/let]
+		[/if]
+	[/let]
+[/if]
+}
+[/template]

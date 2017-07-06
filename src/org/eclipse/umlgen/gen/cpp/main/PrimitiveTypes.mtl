@@ -1,0 +1,60 @@
+[comment]
+  Copyright 2016 Daniel Kaminski de Souza and Marcelo Giesteira Campani
+  All rights reserved.  This program and the accompanying materials
+  are made available under the terms of the Eclipse Public License 1.0
+  
+  Any license can be applied to the files generated with this template.
+  
+  author <a href="mailto:dani_kase@yahoo.com.br">Daniel Kaminski de Souza</a>
+  author <a href="mailto:marcelogcampani@gmail.com">Marcelo Giesteira Campani</a>
+[/comment]
+[module PrimitiveTypes('http://www.eclipse.org/uml2/5.0.0/UML')]
+
+[import org::eclipse::umlgen::gen::cpp::main::common/]
+
+[template public generatePrimitiveTypes(modelPkg: Package, pkg : String)]
+[file(modelPkg.name+'\\'+pkg+'\\'+'PrimitiveTypes'+'.hpp', false)]
+[let defString: String = includeSTRING('PrimitiveTypes')]
+#ifndef [defString/]
+#define [defString/]
+
+/** Includes **/
+[if getProperty('compiler') <> 'CODEWARRIOR']
+#include <string>
+
+using namespace std;
+
+typedef string String;
+typedef uint32_t Integer;
+typedef bool Boolean;
+[else]
+#include <stdint.h>
+#include <stdbool.h>
+#include <string.h>
+
+#define string LIBDEF_StringPtr
+[/if]
+/**************/
+
+typedef void Object;
+// [protected ('user primitive Types')]
+// TO_DO Primitive types should be implemented
+// [/protected].
+
+[if getProperty('compiler') = 'CODEWARRIOR']
+#define nullptr (void*)0
+
+[/if]
+typedef enum ErrorOkEnum
+{
+	unknown, error, ok
+}ErrorOk;
+
+[if getProperty('compiler') = 'CODEWARRIOR']
+typedef string String;
+[/if]
+
+#endif //[defString/]
+[/let]
+[/file]
+[/template]

@@ -1,0 +1,364 @@
+[comment]
+  Copyright 2016 Daniel Kaminski de Souza and Marcelo Giesteira Campani
+  All rights reserved.  This program and the accompanying materials
+  are made available under the terms of the Eclipse Public License 1.0
+  
+  Any license can be applied to the files generated with this template.
+  
+  author <a href="mailto:dani_kase@yahoo.com.br">Daniel Kaminski de Souza</a>
+  author <a href="mailto:marcelogcampani@gmail.com">Marcelo Giesteira Campani</a>
+[/comment]
+[module mainFile('http://www.eclipse.org/uml2/5.0.0/UML')]
+
+[import org::eclipse::umlgen::gen::cpp::main::instanceSupport/]
+[import org::eclipse::umlgen::gen::cpp::main::classSupport/]
+[import org::eclipse::umlgen::gen::cpp::main::propertySupport/]
+[import org::eclipse::umlgen::gen::cpp::main::common/]
+
+[query public searchMatchingInstanceSlots(aProperty: Property, is: InstanceSpecification) : Sequence(Slot) =
+	let listOfInstanceSlots: Sequence(Slot) = is.takeAssociationSlotsFromNonAssociationInstance()->select(sl | sl.getProperty() = aProperty) in (	
+		if aProperty.association = null then
+			listOfInstanceSlots
+		else
+			listOfInstanceSlots->select(sl | sl.takeInstance().isInstantiable())
+		endif
+	)
+/]
+[query public getMatchingSlot(is: InstanceSpecification, aProperty: Property) : Slot =
+	is.getNonAssociationSlots()->any(sl | sl.getProperty() = aProperty)
+/]
+[query public getMatchingSlots(is: InstanceSpecification, aProperty: Property) : Set(Slot) =
+	is.getNonAssociationSlots()->select(sl | sl.getProperty() = aProperty)
+/]
+[query public checkIfEmptyString(aProperty: Property) : String =
+	'/*WARNING: Slot for property '+ aProperty.name +' not found!*/'+
+	let propertyType: Type = aProperty.type in (
+		propertyType.defaultReturn()
+	)
+/]
+
+[query public instanceString(anInstance: InstanceSpecification) : String = 
+anInstance.name
+/]
+[query public instanceStringImpl(anInstance: InstanceSpecification, itsString: String) : String = 
+anInstance.name+itsString.substring(itsString.strtok('@',0).size()+2, itsString.strtok(' (',0).size())
+/]
+
+[query public getPropertyInfo(aSlot: Slot, aProperty: Property) : String = 
+	if aProperty.type.name = 'String' then
+		'(String)"'
+	else
+		''
+	endif+aSlot.value.eGet('value')+
+	if aProperty.type.name = 'String' then
+		'"'
+	else
+		''
+	endif
+/]
+
+[query public checkTooMany(i: Integer, upper: Integer, is: InstanceSpecification) : String =
+	if i > upper and upper <> -1 then
+		'/* WARNING: Too many slots for <'+is.name+'> found '+i+'! Maximum amount of  instances '+upper+'. */'
+	else
+		''
+	endif
+/]
+
+[query public postAssociationText(traceabilityContext: OclAny) : String = 'toAssociateAfterwards'
+/]
+[query public ownerString(traceabilityContext: OclAny) : String = 'ownerWillClose'
+/]
+
+[query public getMostSpecializedClass(anInstance: InstanceSpecification, wantedClass: Class) : Class = 
+	anInstance.classifier.oclAsType(Class)->iterate(
+		element : Class; result : Class = wantedClass | 
+		if	element.superClass->any(ac | ac = wantedClass) = null  then
+			result
+		else
+			anInstance.getMostSpecializedClass(element) 
+		endif
+	)
+/]
+[query public getMostSpecializedClass(anInstance: InstanceSpecification) : Class = 
+	anInstance.getMostSpecializedClass(anInstance.classifier.oclAsType(Class)->any(true))
+/]
+[query public getInstanceReference(anInstance: InstanceSpecification, aClassItem: Property) : String = 
+	if anInstance.isConst() then
+		'('+aClassItem.getClass().name+'*)&'
+	else
+		if anInstance.isStatic() then
+			'&'
+		else
+			''
+		endif	
+	endif
+/]
+[query public getInstanceReferenceVector(anInstance: InstanceSpecification, aClassItem: Property) : String = 
+	if anInstance.isConst() then
+		'('+aClassItem.checkVectorProtoPtr()+')&'
+	else
+		if anInstance.isStatic() then
+			'&'
+		else
+			''
+		endif	
+	endif
+/]
+[query public getInstanceReference(anInstance: InstanceSpecification) : String = 
+	if anInstance.isConst() then
+		'(*)&'
+	else
+		if anInstance.isStatic() then
+			'&'
+		else
+			''
+		endif	
+	endif
+/]
+[template public OneSlotInstantiation(theSlot: Slot, aClassItem: Property, owningInstance: InstanceSpecification, number: Integer) post(trim())]
+	[if aClassItem.association = null]
+[theSlot.getPropertyInfo(aClassItem)/]
+	[else]
+		[let theInstance: InstanceSpecification = theSlot.takeInstance()]
+			[comment][if owningInstance.addDefinedInstance()]/*#[owningInstance.name/] [theInstance.name/]#*/[/if][/comment]
+			[if aClassItem.aggregation = AggregationKind::composite]
+[theInstance.getInstanceReference(aClassItem)+theInstance.instanceString()/]											
+			[else]
+				[if aClassItem.getOtherMemberEnd().aggregation <> AggregationKind::composite]
+					[let leftString: String = if owningInstance.isStatic() or owningInstance.isConst() then '.' else '->' endif]
+[theInstance.checkFurtherAssociationNeeded(aClassItem, owningInstance, Sequence{owningInstance.instanceString()+ leftString + aClassItem.checkPackProperties(leftString, number)})/]
+					[/let]
+				[else]
+[ownerString()/]
+				[/if]
+			[/if]
+		[/let]
+	[/if]
+[/template]
+
+[query public checkPackProperties(aClassItem: Property, leftString: String, number: Integer) : String =
+	if aClassItem.hasMultipleItems() then
+		aClassItem.propertyListName()+leftString+'at('+number+')'
+	else
+		aClassItem.name
+	endif
+/]
+[query public OneInstance(aClassItem: Property, theInstance: InstanceSpecification) : String =
+	if aClassItem.upper <> 1 then
+		theInstance.getInstanceReferenceVector(aClassItem) + theInstance.vectorName(aClassItem)
+	else
+		let listOfInstanceSlots: Sequence(Slot) = aClassItem.searchMatchingInstanceSlots(theInstance) in (
+			'/*'+aClassItem.name+'*/'+
+			if listOfInstanceSlots->isEmpty() then
+			'/*WARNING: undefined instance*/'+if aClassItem.association = null and aClassItem.upper = 1 then aClassItem.checkIfEmptyString() else 'nullptr'endif
+			else
+				if listOfInstanceSlots->size() > 1  then
+					'/*WARNING: more than one instance: '+ listOfInstanceSlots.getInstance().name->sep(' ,') +'. */'
+				else
+					''
+				endif
+				+listOfInstanceSlots->any(true).OneSlotInstantiation(aClassItem, theInstance, 0)
+			endif
+		)
+	endif	
+/]
+
+[template public PackOfInstances(aClassItem: Property, theInstance: InstanceSpecification)]
+	[for (aSlot: Slot | aClassItem.searchMatchingInstanceSlots(theInstance)->sortedBy(sl | sl.takeInstance().name)) before('(') separator(', ') after(')')]
+[aSlot.OneSlotInstantiation(aClassItem, theInstance, i-1)/][/for]
+[/template]
+
+
+
+[template public CloseAssociations(traceabilityContext: OclAny)]
+[for (anInstance: InstanceSpecification | getNonCompositeAssociationList())]
+['\t'+getNonCompositeAssociationPath()->at(i)/] = [anInstance.getInstanceReference(getNonCompositeAssociationProperty()->at(i))+anInstance.instanceString()/];
+[/for]
+[/template]
+
+[query private spawnInstanceTree(aCanopyInstance : InstanceSpecification) : Sequence(InstanceSpecification) =
+Sequence{aCanopyInstance}->spawnInstanceTreeImpl(Sequence{aCanopyInstance})
+/]
+[query private spawnInstanceTreeImpl(parents : Sequence(InstanceSpecification), list: Sequence(InstanceSpecification)) : Sequence(InstanceSpecification) =
+	let children : Sequence(InstanceSpecification) = parents.getListOfCompositeInstances()  in
+		if children->isEmpty() then
+	   			list->asOrderedSet()->asSequence()
+	   	else
+	   		children->spawnInstanceTreeImpl(list->union(children))
+		endif
+/]
+[query private vectorName(anInstance: InstanceSpecification, vectorProp: Property) : String =
+	anInstance.instanceString()+'_'+vectorProp.propertyListName()
+/]
+[template public mainFile(pkg : Package)]
+/*
+[for (aCanopyInstance: InstanceSpecification | canopyInstances()->sortedBy(name))]
+	[for (anInstance: InstanceSpecification | aCanopyInstance.spawnInstanceTree()->reverse()->select(isInstantiable()))]
+		[let theClass: Class = anInstance.getMostSpecializedClass()]
+		[let PropList: Sequence(Property) = theClass.getAllNonDerivedClassItens()]
+			[let vectorPropList: Sequence(Property) = PropList->select(upper <> 1)]
+				[for (vectorProp: Property | vectorPropList)]
+					[let vectorName: String = anInstance.vectorName(vectorProp)]
+					[anInstance.addInstance(vectorName, theClass)/]
+					[vectorProp.assembleVectorProto(vectorProp.association).addClass()/]
+					[(vectorProp.assembleVectorProto(vectorProp.association)+'*').addInstancePointer()/]
+					[let instantiatioString: String = vectorProp.PackOfInstances(anInstance) ]
+						[instantiatioString.addInstantiationString()/][if anInstance.addDefinedInstance()][/if]
+					[/let]
+					[/let]
+				[/for]
+			[/let]
+			[anInstance.addInstance(anInstance.instanceString(), theClass)/]
+			[theClass.name.addClass()/]
+			[(theClass.name+'*').addInstancePointer()/]
+
+			[let instantiatioString: String = '('+PropList.OneInstance(anInstance)->sep(', ')+')' ] [comment]->sep('(',', ',')')[/comment]
+				[instantiatioString.addInstantiationString()/][if anInstance.addDefinedInstance()][/if]
+			[/let]
+		[/let]
+		[/let]	
+	[/for]
+
+[/for]
+[let classList: Sequence(String) = getClassList().prepareIncludeFromPackage(pkg) ]
+	[for (phrase: String | classList)]
+		[phrase.addInclude()/]
+	[/for]
+[/let]
+*/
+	[file(pkg.name+'\\'+'main.cpp', false)]
+			[let tab: String = if (getProperty('memoryLeakTest') = 'ON')then '\t\t' else '\t' endif]
+[if (not getSortedIncludeList()->isEmpty())]
+			[let includeString: String = '#include "' ]
+[getSortedIncludeList()->sep(includeString, '.hpp"\n'+includeString, '.hpp"\n')/][/let]
+[/if]
+[if getProperty('memoryLeakTest') = 'ON']
+[assembleInclude('Resources\\MemCheck')/] // Must appear last![/if]
+[if getProperty('compiler') <> 'CODEWARRIOR']
+
+using namespace std;[/if]
+
+/*************************************************************************************************/
+/************************************ Object Factory Defines *************************************/
+/*************************************************************************************************/
+#define [postAssociationText()/]	nullptr
+#define ownerWillClose			nullptr
+
+//[protected ('Main custom area')]
+//[/protected]
+
+/*************************************************************************************************/
+/************************************ Const or Static Objects ************************************/
+/*************************************************************************************************/
+[for (anInstance: InstanceSpecification | getInstanceList())]
+[let inst: String = getClassStringList()->at(i)+' '+getInstances()->at(i)+getInstantiationStringList()->at(i)+';']
+	[if anInstance.isStatic()]
+[inst/];
+	[/if]
+	[if anInstance.isConst()]
+extern const [inst/]
+	[/if]
+[/let]
+[/for]
+/*************************************************************************************************/
+/************************************* Non Static Object Factory *********************************/
+/*************************************************************************************************/
+void objectFactory ([canopyInstancesNotConst()->collect(getClass().name+'*& given'+name.toUpperFirst())->sep(', ') /])
+{
+[for (anInstance: InstanceSpecification | getInstanceList()->select(ci | not ci.isConst()))]
+	[if not anInstance.isStatic()]
+	[getInstancePointersList()->at(i)/]
+		[getInstances()->at(i)/] = new [getClassStringList()->at(i)/][getInstantiationStringList()->at(i)/]; 
+	[/if]
+[/for]
+	/*********************************************************************************************/
+	/************************************* Closing Associations **********************************/
+	/*********************************************************************************************/
+[CloseAssociations()/]
+	//[protected ('custom area One.')]
+	//[/protected]
+	[for (aCanopyNotConstInstance: InstanceSpecification | canopyInstancesNotConst()->sortedBy(name))]
+	given[aCanopyNotConstInstance.name.toUpperFirst()/] = [aCanopyNotConstInstance.name/];
+	[/for]
+}
+
+/*************************************************************************************************/
+/************************************************ Main *******************************************/
+/*************************************************************************************************/
+[if getProperty('compiler') = 'CODEWARRIOR']void[else]int[/if] main ([if getProperty('compiler') = 'CODEWARRIOR']void[else]['int , char* []'/][/if]){
+	[for (aCanopyNotConstInstance: InstanceSpecification | canopyInstancesNotConst()->sortedBy(name))]
+	[aCanopyNotConstInstance.getClass().name/]* [aCanopyNotConstInstance.assembleTheCanopyInstance()/] = nullptr;
+	[/for]
+[if getProperty('memoryLeakTest') = 'ON']
+
+	MEM_ON();
+[/if]
+	objectFactory([canopyInstancesNotConst()->collect(assembleTheCanopyInstance())->sep(', ')/]);
+[if getProperty('memoryLeakTest') = 'ON']
+	[for (aCanopyInstance: InstanceSpecification | canopyInstancesNotConst())]
+	delete [aCanopyInstance.assembleTheCanopyInstance()/];
+	[/for]
+	MEM_OFF();
+
+#ifndef MEMCHECK_H
+[else]
+	[for (anBehaviorCanopyInstance: InstanceSpecification | canopyInstances()->select(getClass().addAllSupers().name->any(n | n = 'Behavior') <> null))]
+	[anBehaviorCanopyInstance.assembleTheCanopyInstance()/]->Run();
+	[/for]
+	[for (anActiveCanopyInstance: InstanceSpecification | canopyInstances()->select(getClass().isActive))]
+	[anActiveCanopyInstance.assembleTheCanopyInstance()/]->classifierBehavior->Run();
+	[/for]
+[/if]
+	//[protected ('custom area Two.')]
+	//[/protected]
+[if getProperty('memoryLeakTest') = 'ON']#endif[/if]
+	[if getProperty('compiler') <> 'CODEWARRIOR']return 0;[/if]	
+}
+[/let]
+[/file]
+[file ('output.txt', false, 'UTF-8')]
+Defined Instances List: [getDefinedInstancesList()->size()/]
+	[getDefinedInstancesList()->sep('\n\t')/]
+	[/file]
+[/template]
+
+[query public assembleTheCanopyInstance(theInstance: InstanceSpecification) : String = 
+	'the'+theInstance.name.toUpperFirst()
+/]
+[query public checkFurtherAssociationNeeded(anInstance: InstanceSpecification, aClassItem: Property, owningInstance: InstanceSpecification, strList: Sequence(String)) : String =
+if ( 
+	(
+		(
+			anInstance.isBigBangBorn() = owningInstance.isBigBangBorn()
+		)and(
+			getDefinedInstancesList()->includes(anInstance)
+		)
+	)or(
+		anInstance.isBigBangBorn() and not owningInstance.isBigBangBorn()
+	)
+ ) then
+	anInstance.getInstanceReference(aClassItem)+anInstance.instanceString()
+else
+	anInstance.furtherAssociate(strList, aClassItem)
+endif
+/]
+
+[comment]+ '/*' + anInstance.name + ':' + anInstance.isBigBangBorn() +  ':' + getDefinedInstancesList()->includes(anInstance) + '_' + owningInstance.name+ ':' +owningInstance.isBigBangBorn() + ':' +getDefinedInstancesList()->includes(owningInstance) +'*/'[/comment]
+[query public furtherAssociate(anInstance: InstanceSpecification, strList: Sequence(String), aClassItem: Property) : String =
+postAssociationText()+' /* '+
+if anInstance.addNonCompositeAssociation(addThisF(strList), aClassItem) = 'true' then
+	'Added to the list.'
+else
+	'Couldnt add to the list.'
+endif
++' */'
+/]
+
+[query public assembleVectorProtoCreation(aProperty: Property, strList: Sequence(String)) : String = 
+	'new '+aProperty.assembleVectorProto(aProperty.association)
+/]
+
+[query public addThisF (strList: Sequence(String)) : String =
+''+strList->sep('->')
+/]

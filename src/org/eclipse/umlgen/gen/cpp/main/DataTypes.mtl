@@ -1,0 +1,36 @@
+[comment]
+  Copyright 2016 Daniel Kaminski de Souza and Marcelo Giesteira Campani
+  All rights reserved.  This program and the accompanying materials
+  are made available under the terms of the Eclipse Public License 1.0
+  
+  Any license can be applied to the files generated with this template.
+  
+  author <a href="mailto:dani_kase@yahoo.com.br">Daniel Kaminski de Souza</a>
+  author <a href="mailto:marcelogcampani@gmail.com">Marcelo Giesteira Campani</a>
+[/comment]
+[module DataTypes('http://www.eclipse.org/uml2/5.0.0/UML')]
+
+[import org::eclipse::umlgen::gen::cpp::main::common/]
+[import org::eclipse::umlgen::gen::cpp::main::propertySupport/]
+
+[template public generateDataTypes(modelPkg: Package, pkg : String)]
+[file(modelPkg.name+'\\'+pkg+'\\'+'DataTypes'+'.hpp', false)]
+[let defString: String = includeSTRING('DataTypes')]
+#ifndef [defString/]
+#define [defString/]
+#include "Enumerations.hpp"
+// [protected ('user data types'+'')]
+// TO_DO DataTypes user data types should be implemented
+// [/protected]
+	[for (pt: DataType | current(Model).eAllContents(DataType)->select(not oclIsTypeOf(Enumeration) and not oclIsTypeOf(PrimitiveType)))]
+typedef struct
+{
+	[for (ss: Property | pt.attribute)]
+	[ss.type.name/] [ss.name/][if (ss.hasMultipleItems())]['['+ss.upper+']'/][/if];
+	[/for]
+}[pt.name/];
+	[/for]
+#endif //[defString/]
+[/let]
+[/file]
+[/template]

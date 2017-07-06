@@ -1,0 +1,486 @@
+/*******************************************************************************
+ * Copyright (c) 2016 Daniel Kaminski de Souza and Marcelo Giesteira Campani.
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Eclipse Public License v1.0
+ * which accompanies this distribution, and is available at
+ * http://www.eclipse.org/legal/epl-v10.html
+ * 
+ * Contributors:
+ *     Daniel Kaminski de Souza - UML to C++ generator implementation
+ *     Marcelo Giesteira Campani - UML to C++ generator implementation
+ *******************************************************************************/
+modeltype UML uses uml('http://www.eclipse.org/uml2/4.0.0/UML');
+modeltype ECORE uses 'http://www.eclipse.org/emf/2002/Ecore';
+
+transformation StateMachine_ClassDiagram(in umlSource:UML, in stateMachineMetaModel:UML, out umlTarget:UML);
+
+main() {
+	var umlSourceModelPkg:= umlSource.getModelSet();
+	umlSourceModelPkg->map Model2Model();	// Loads the input uml
+}
+
+query UML::getModelSet() : Set(Model) {
+	return self.rootObjects()[Model];
+}
+query UML::getPackageableElements() : Sequence(PackageableElement) {
+	return self.getModelSet().packagedElement->asSequence();
+}
+
+mapping Model :: Model2Model() : Model {
+	name := self.name;
+	var listOfMetaModelElements := stateMachineMetaModel.getPackageableElements();
+
+	var stateMachineMetaModelPackage := new Package("StateMachineMetaModel");
+		//package1.packagedElement += listOfMetaModelElements;
+		stateMachineMetaModelPackage.packagedElement += listOfMetaModelElements[Class]->sortedBy(name);
+		stateMachineMetaModelPackage.packagedElement += listOfMetaModelElements[Association]->sortedBy(name);
+	
+		var listOfSourceElements := umlSource.getPackageableElements();
+		var listOfSourceClasses := listOfSourceElements[Class];
+		var listOfSourceActiveClasses := listOfSourceClasses->select(isActive);
+	
+		var instanceSpecificationList := listOfSourceElements->selectByType(InstanceSpecification);
+		var tupleList : Sequence(Tuple(ip: InstancePair, sm: StateMachine));
+
+		// TODO Look for standalone StateMachines
+		listOfSourceElements[StateMachine]->select(owner.oclIsTypeOf(Model))->forEach(standAloneStateMachine){
+			var a := Tuple{ip=null, sm=standAloneStateMachine};
+			tupleList += a;	
+		};
+		
+		if (not listOfSourceActiveClasses->isEmpty()){
+			var behavioredClassifierClass := listOfMetaModelElements[Class]->any(name = "BehavioredClassifier");
+			
+			listOfSourceActiveClasses->forEach(activeClass){
+				activeClass.superClass := activeClass.superClass->including(behavioredClassifierClass);
+				//activeClass.createOwnedOperation("Run", null, null, null);
+				
+				activeClass.ownedBehavior->forEach(behavior){
+					if (behavior.oclIsTypeOf(StateMachine)) {
+						var theStateMachine := behavior.oclAsType(StateMachine);
+						var matchingInstanceSpecification := instanceSpecificationList->any(classifier->any(cl | cl.oclAsType(Class).classifierBehavior = theStateMachine) <> null);
+						if (matchingInstanceSpecification <> null){
+							var a := Tuple{ip=new InstancePair(activeClass, matchingInstanceSpecification), sm=theStateMachine};
+							tupleList += a;									
+						};
+					};
+				};
+				//activeClass.classifierBehavior := null;
+				//activeClass.ownedBehavior := null;
+			};
+		};
+
+	packagedElement+=stateMachineMetaModelPackage;
+	
+	packagedElement += listOfSourceElements[Class]->sortedBy(name);
+	packagedElement += listOfSourceElements[Association]->sortedBy(name);
+	packagedElement += instanceSpecificationList;
+
+	var StateMachinesLIP := tupleList->InstancePairToLIP(listOfMetaModelElements);	
+	if (not StateMachinesLIP->isEmpty() ) {
+		packagedElement += StateMachinesLIP.spe;
+		packagedElement+= tupleList.sm->map StateMachineToPackage(listOfMetaModelElements, StateMachinesLIP.lip);		
+	}
+}
+helper Tuple(ip: InstancePair, sm: StateMachine) :: InstancePairToLIP(listOfMetaModelElements : Sequence(PackageableElement)) : Tuple(lip: LinkedInstancePair, spe: Sequence(InstanceSpecification)) {
+	var stateMachineLinkedInstancePair := new LinkedInstancePair();
+	stateMachineLinkedInstancePair.linkedInstance := CreateLinkedInstance(self.sm, listOfMetaModelElements[Class]->select(name = "StateMachine"), self.ip, listOfMetaModelElements, "ownedBehavior", "behavioredClassifier");
+	stateMachineLinkedInstancePair.instancePair := new InstancePair(self.sm, stateMachineLinkedInstancePair.linkedInstance.theInstance);
+
+	var sequenceOfIS : Sequence(InstanceSpecification);
+	if (self.ip <> null){
+		var currentParameterClass := self.ip.namedElement.oclAsType(Class);
+	
+		var currentParameter := currentParameterClass.member[Property]->any(name = "ownedBehavior");
+		var currentParameterSlot := new Slot(currentParameter, null, self.ip.instance);
+		currentParameterSlot.value := new InstanceValue("InstanceValue1", stateMachineLinkedInstancePair.linkedInstance.theInstance, currentParameter.type);
+		self.ip.instance.slot += currentParameterSlot;			
+	
+		currentParameter := currentParameterClass.member[Property]->any(name = "classifierBehavior");
+		currentParameterSlot := new Slot(currentParameter, null, self.ip.instance);
+		currentParameterSlot.value := new InstanceValue("InstanceValue1", stateMachineLinkedInstancePair.linkedInstance.theInstance, currentParameter.type);
+		self.ip.instance.slot += currentParameterSlot;		
+	
+		var associationClassifiers := listOfMetaModelElements[Association]->select(memberEnd->first().name = "classifierBehavior" and memberEnd->last().name = "behavioredClassifier");
+		sequenceOfIS += CreateLinkInstance(
+			stateMachineLinkedInstancePair.instancePair,
+			self.ip, 
+			associationClassifiers
+		);
+	
+		associationClassifiers := listOfMetaModelElements[Association]->select(memberEnd->first().name = "context" and memberEnd->last().name = "behavior");
+		var LI :=CreateLinkInstance(
+			stateMachineLinkedInstancePair.instancePair,
+			self.ip, 
+			associationClassifiers
+		);
+	
+		currentParameterClass := listOfMetaModelElements[Class]->any(name = "Behavior");
+		currentParameter := currentParameterClass.member[Property]->any(name = "context");
+		currentParameterSlot := new Slot(currentParameter, null, self.ip.instance);
+		currentParameterSlot.value := new InstanceValue("InstanceValue1", self.ip.instance, currentParameter.type);
+		LI.slot += currentParameterSlot;		
+		sequenceOfIS += LI;
+	};
+	
+	return Tuple{lip=stateMachineLinkedInstancePair, spe=sequenceOfIS};
+}
+mapping StateMachine :: StateMachineToPackage(listOfMetaModelElements : Sequence(PackageableElement), StateMachinesLIP : Sequence(LinkedInstancePair)) : Package {
+	name := self.name;
+	var currentLIP := StateMachinesLIP->any(instancePair.namedElement = self);
+	var currentLinkedInstance := currentLIP.linkedInstance;
+	packagedElement += currentLinkedInstance.theInstance;
+	if (currentLinkedInstance.theInstanceLink <> null)
+		packagedElement += currentLinkedInstance.theInstanceLink;
+	var stateMachineInstancePair := currentLIP.instancePair;
+	packagedElement += self.region->map RegionToPackage(listOfMetaModelElements, stateMachineInstancePair, StateMachinesLIP.instancePair);
+}
+mapping Region :: RegionToPackage(listOfMetaModelElements : Sequence(PackageableElement), stateMachinePair :InstancePair, StateMachinesIP : Sequence(InstancePair)) : Package {
+	name := self.name;
+	
+	self->RegionPackage(listOfMetaModelElements, stateMachinePair, StateMachinesIP)->forEach(i){
+		packagedElement+=i;
+	};
+}
+intermediate class InstancePair{
+	namedElement : NamedElement;
+	instance : InstanceSpecification;
+}
+constructor InstancePair::InstancePair(givenNamedElement : NamedElement, givenInstance : InstanceSpecification){
+	namedElement := givenNamedElement;
+	instance := givenInstance;
+}
+helper NamedElement::getNamedElement() : String{
+	if (self.name != null)
+		return self.name;
+	return self.toString().substringAfter("org.eclipse.uml2.uml.internal.impl.").substringBefore(" ").replaceFirst("@","");	
+}
+helper CreateLinkedInstance(
+		namedElement : NamedElement, 
+		givenClassifier : Sequence(Classifier), 
+		DiamondPair : InstancePair, 
+		listOfMetaModelElements : Sequence(PackageableElement), 
+		metaModelFrom: String, 
+		metaModelTo: String
+	) : LinkedInstance{
+
+	var returnLinkedInstance := new LinkedInstance();
+
+	returnLinkedInstance.theInstance := new InstanceSpecification(namedElement.getNamedElement(), givenClassifier, null);
+	var instanceToLinkPair := new InstancePair(namedElement, returnLinkedInstance.theInstance);
+	
+	var associationClassifiers := listOfMetaModelElements[Association]->select(memberEnd->first().name = metaModelFrom and memberEnd->last().name = metaModelTo);
+
+	if (DiamondPair <> null){
+		returnLinkedInstance.theInstanceLink := CreateLinkInstance(
+			instanceToLinkPair,
+			DiamondPair, 
+			associationClassifiers
+		);
+	
+		var memberEndLast := associationClassifiers->any(true).memberEnd->last();
+		if (memberEndLast.isNavigable()){
+			var currentParamenterClass := listOfMetaModelElements[Class]->any(name = instanceToLinkPair.instance.classifier->any(true).name);
+			var currentParameter := memberEndLast;
+			var currentParameterSlot := new Slot(currentParameter, null, DiamondPair.instance);
+			currentParameterSlot.value := new InstanceValue("InstanceValue0", instanceToLinkPair.instance, currentParamenterClass);
+			DiamondPair.instance.slot += currentParameterSlot;	
+		};
+	};
+
+	return returnLinkedInstance;
+}
+helper CreateLinkInstance(
+		givenInstanceToLinkPair : InstancePair,
+		givenInstancePair : InstancePair,
+		classifiers : Sequence(Classifier)
+	) : InstanceSpecification{
+
+	
+	var returnInstanceSpecification := new InstanceSpecification(
+		"Link"+classifiers.name->asList()->joinfields(',',' ',' ')+givenInstancePair.namedElement.getNamedElement()+"_"+givenInstanceToLinkPair.namedElement.getNamedElement(), 
+		classifiers, 
+		null
+	);
+
+	var properties := classifiers->any(true).ownedElement->oclAsType(Property)->asSequence()->sortedBy(name);
+	var currentParameterSlot :Slot;
+
+	var SequenceList := Sequence{givenInstancePair, givenInstanceToLinkPair};
+	var pairToUse : InstancePair;
+	var propTypeClass : Class;
+	properties->forEach(prop){
+		propTypeClass := prop.type.oclAsType(Class);
+		pairToUse := SequenceList->any(instance.classifier->any(true).oclAsType(Class).addAllSupers()->includes(propTypeClass));
+		currentParameterSlot := new Slot(prop, null, returnInstanceSpecification);
+		currentParameterSlot.value := new InstanceValue("InstanceValue0", pairToUse.instance, propTypeClass);
+		returnInstanceSpecification.slot += currentParameterSlot;
+	};
+
+	returnInstanceSpecification.eAnnotations +=new EAnnotation("InstanceEnd", SequenceList.instance->oclAsType(EObject));
+
+	return returnInstanceSpecification;
+}
+helper Class :: addAllSupers() : Bag(Class) {
+    return Bag{self}->union(self.superClass->asBag().addAllSupers())
+}
+helper Region :: RegionPackage(listOfMetaModelElements : Sequence(PackageableElement), stateMachinePair :InstancePair, StateMachinesIP : Sequence(InstancePair)) : Sequence(InstanceSpecification) {
+	var returnInstanceStructure = new instanceStructure();
+	//var instanceList : Sequence(LinkedInstance);
+	var currentLinkedInstance : LinkedInstance;
+
+	currentLinkedInstance := CreateLinkedInstance(self, listOfMetaModelElements[Class]->select(name = "Region"), stateMachinePair, listOfMetaModelElements, "stateMachine", "region");
+	var regionInstance : InstanceSpecification;
+	regionInstance := currentLinkedInstance.theInstance; 
+	
+	returnInstanceStructure.instances+=currentLinkedInstance.theInstance;
+	returnInstanceStructure.instanceLinks+=currentLinkedInstance.theInstanceLink;
+
+	var RegionClass := listOfMetaModelElements[Class]->any(name = "Region");
+	var currentVertex := RegionClass.ownedAttribute->any(name = "currentVertex");
+	
+	var currentVertexSlot := new Slot(currentVertex, null, regionInstance);
+	regionInstance.slot += currentVertexSlot;		
+	
+	var regionInstancePair := new InstancePair(self, regionInstance);
+	var listTransitionInstances : Set(LinkedInstance);
+	self.transition->forEach(i){
+		listTransitionInstances += i.TransitionToInstance(listOfMetaModelElements, regionInstancePair);
+	};
+	var currentInstanceStructure : instanceStructure;
+	self.subvertex->forEach(vertex){
+		currentInstanceStructure := vertex.VertexToInstance(listOfMetaModelElements, regionInstancePair, StateMachinesIP);
+		var currentInstance := currentInstanceStructure.instances->any(true);
+		returnInstanceStructure.instances := returnInstanceStructure.instances->union(currentInstanceStructure.instances);
+		returnInstanceStructure.instanceLinks := returnInstanceStructure.instanceLinks->union(currentInstanceStructure.instanceLinks);
+		var vertexPair := new InstancePair(vertex, currentInstance);
+		if (vertex.oclIsKindOf(Pseudostate)) then{	
+			currentVertexSlot.value += new InstanceValue("InstanceValue0", currentInstance, listOfMetaModelElements[Class]->any(name = "Vertex")); 
+
+			var associationClassifiers := listOfMetaModelElements[Association]->select(memberEnd->first().name = "region" and memberEnd->last().name = "currentVertex");	
+			returnInstanceStructure.instanceLinks += CreateLinkInstance(
+				vertexPair,
+				regionInstancePair, 
+				associationClassifiers
+			);				
+		}endif;
+		
+		vertex.incoming->forEach(incomingTransition){
+			
+			var instanceToLinkPair := new InstancePair(incomingTransition, listTransitionInstances.theInstance->any(name = incomingTransition.getNamedElement()));
+			
+			var associationClassifiers := listOfMetaModelElements[Association]->select(memberEnd->first().name = "target" and memberEnd->last().name = "incoming");
+		
+			returnInstanceStructure.instanceLinks += CreateLinkInstance(
+				instanceToLinkPair,
+				vertexPair, 
+				associationClassifiers
+			);		
+		};	
+		vertex.outgoing->forEach(outgoingTransition){
+			
+			var instanceToLinkPair := new InstancePair(outgoingTransition, listTransitionInstances.theInstance->any(name = outgoingTransition.getNamedElement()));
+			
+			var associationClassifiers := listOfMetaModelElements[Association]->select(memberEnd->first().name = "source" and memberEnd->last().name = "outgoing");
+		
+			returnInstanceStructure.instanceLinks += CreateLinkInstance(
+				instanceToLinkPair,
+				vertexPair, 
+				associationClassifiers
+			);		
+		};
+	};
+	returnInstanceStructure.instances := returnInstanceStructure.instances->union(listTransitionInstances.theInstance);
+	returnInstanceStructure.instanceLinks := returnInstanceStructure.instanceLinks->union(listTransitionInstances.theInstanceLink);	
+
+	return returnInstanceStructure.instances->sortedBy(name)->union(returnInstanceStructure.instanceLinks->sortedBy(name))->asSequence();
+}
+intermediate class LinkedInstancePair{
+	linkedInstance : LinkedInstance;
+	instancePair : InstancePair;
+}
+intermediate class LinkedInstance{
+	theInstance : InstanceSpecification;
+	theInstanceLink : InstanceSpecification;
+}
+constructor LinkedInstancePair::LinkedInstancePair(){
+}
+intermediate class instanceStructure{
+	instances : Set(InstanceSpecification);
+	instanceLinks : Set(InstanceSpecification);
+}
+constructor instanceStructure::instanceStructure(){
+}
+constructor LinkedInstance::LinkedInstance(){
+}
+helper Transition :: TransitionToInstance(listOfMetaModelElements : Sequence(PackageableElement), regionPair : InstancePair) : Sequence(LinkedInstance) {
+	var returnList : Sequence(LinkedInstance);
+
+	var linkedInstance := CreateLinkedInstance(self,  listOfMetaModelElements[Class]->select(name = "Transition"), regionPair, listOfMetaModelElements, "container", "transition");
+	
+	returnList+=linkedInstance;
+	var transitionInstancePair := new InstancePair(self, linkedInstance.theInstance);
+	
+	self.trigger->forEach(i){
+		returnList += i.TriggerToInstance(listOfMetaModelElements, transitionInstancePair);
+	};
+
+	return returnList;	
+}
+helper Trigger :: TriggerToInstance(listOfMetaModelElements : Sequence(PackageableElement), transitionPair: InstancePair) : LinkedInstance {
+	var triggerInstanceLink : LinkedInstance;
+
+	triggerInstanceLink := CreateLinkedInstance(self, listOfMetaModelElements[Class]->select(name = "Trigger"), transitionPair, listOfMetaModelElements, "transition", "trigger");
+	var TriggerClass := listOfMetaModelElements[Class]->any(name = "Trigger");
+	var triggerInstance := triggerInstanceLink.theInstance;
+
+	var currentParameter := TriggerClass.ownedAttribute->any(name = "triggerString");
+	var currentParameterSlot := new Slot(currentParameter, null, triggerInstance);
+	currentParameterSlot.value := new LiteralString(self.event.name);
+	triggerInstance.slot += currentParameterSlot;
+	
+	return triggerInstanceLink;	
+}
+helper Vertex :: ConnectionPointReferenceToInstance(listOfMetaModelElements : Sequence(PackageableElement), regionPair: InstancePair) : instanceStructure {
+	var returnInstanceStructure = new instanceStructure();
+	var returnInstanceLink:= self.CreateLI(listOfMetaModelElements, regionPair, "ConnectionPointReference");
+	returnInstanceStructure.instances+=returnInstanceLink.theInstance;
+	returnInstanceStructure.instanceLinks+=returnInstanceLink.theInstanceLink;
+	return returnInstanceStructure;
+}
+helper Vertex :: GeneralVertexToInstance(listOfMetaModelElements : Sequence(PackageableElement), regionPair: InstancePair) : instanceStructure {
+	var returnInstanceStructure = new instanceStructure();
+	var returnInstanceLink:= self.CreateLI(listOfMetaModelElements, regionPair, "Vertex");
+	returnInstanceStructure.instances+=returnInstanceLink.theInstance;
+	returnInstanceStructure.instanceLinks+=returnInstanceLink.theInstanceLink;
+	return returnInstanceStructure;
+}
+helper Vertex :: PseudoStateToInstance(listOfMetaModelElements : Sequence(PackageableElement), regionPair: InstancePair) : instanceStructure {
+	var returnInstanceStructure = new instanceStructure();
+	var returnInstanceLink:= self.CreateLI(listOfMetaModelElements, regionPair, "PseudoState");
+	returnInstanceStructure.instances+=returnInstanceLink.theInstance;
+	returnInstanceStructure.instanceLinks+=returnInstanceLink.theInstanceLink;
+	return returnInstanceStructure;
+}
+helper Vertex :: StateToInstance(listOfMetaModelElements : Sequence(PackageableElement), regionPair: InstancePair, StateMachinesIP : Sequence(InstancePair)) : instanceStructure {
+	var returnInstanceStructure = new instanceStructure();
+	var returnInstanceLink:= self.CreateLI(listOfMetaModelElements, regionPair, "State");
+	var StateClass := listOfMetaModelElements[Class]->any(name = "State");
+	var StateInstance := returnInstanceLink.theInstance;
+	var selfState := self.oclAsType(State);
+
+	var currentParameter := StateClass.ownedAttribute->any(name = "isComposite");
+	var currentParameterSlot := new Slot(currentParameter, null, StateInstance);
+	currentParameterSlot.value := new LiteralBoolean(selfState.isComposite);
+	StateInstance.slot += currentParameterSlot;	
+
+	currentParameter := StateClass.ownedAttribute->any(name = "isOrthogonal");
+	currentParameterSlot := new Slot(currentParameter, null, StateInstance);
+	currentParameterSlot.value := new LiteralBoolean(selfState.isOrthogonal);
+	StateInstance.slot += currentParameterSlot;	
+
+	currentParameter := StateClass.ownedAttribute->any(name = "isSimple");
+	currentParameterSlot := new Slot(currentParameter, null, StateInstance);
+	currentParameterSlot.value := new LiteralBoolean(selfState.isSimple);
+	StateInstance.slot += currentParameterSlot;	
+
+	currentParameter := StateClass.ownedAttribute->any(name = "isSubMachineState");
+	currentParameterSlot := new Slot(currentParameter, null, StateInstance);
+	currentParameterSlot.value := new LiteralBoolean(selfState.isSubmachineState);
+	StateInstance.slot += currentParameterSlot;
+	
+	returnInstanceStructure.instances+=returnInstanceLink.theInstance;
+	returnInstanceStructure.instanceLinks+=returnInstanceLink.theInstanceLink;
+	
+	var Submachine := self.oclAsType(State).submachine;
+	if (Submachine != null){
+			//var instanceToLinkPair := new InstancePair(outgoingTransition, listTransitionInstances.theInstance->any(name = outgoingTransition.name));
+			
+			var associationClassifiers := listOfMetaModelElements[Association]->select(memberEnd->first().name = "submachine" and memberEnd->last().name = "submachineState");
+		
+			var StatePair := new InstancePair(self.oclAsType(State), returnInstanceLink.theInstance);		
+			returnInstanceStructure.instanceLinks += CreateLinkInstance(
+				StateMachinesIP->any(namedElement.oclAsType(StateMachine) = Submachine),
+				StatePair, 
+				associationClassifiers
+			);		
+	};
+	
+	return returnInstanceStructure;
+}
+helper Vertex :: CreateLI(listOfMetaModelElements : Sequence(PackageableElement), regionPair: InstancePair, givenName: String) : LinkedInstance {
+	var returnInstanceLink:= CreateLinkedInstance(
+		self, 
+		listOfMetaModelElements[Class]->select(
+			name = givenName
+		)->sortedBy(name),
+		regionPair,
+		listOfMetaModelElements,
+		"container",
+		"vertex"
+	);
+	return returnInstanceLink;
+}
+helper Vertex :: VertexToInstance(listOfMetaModelElements : Sequence(PackageableElement), regionPair: InstancePair, StateMachinesIP : Sequence(InstancePair)) : instanceStructure {
+		var returnInstanceStructure:= if (self.oclIsKindOf(State)) then 
+			self.StateToInstance(listOfMetaModelElements, regionPair, StateMachinesIP)
+		elif (self.oclIsKindOf(Pseudostate)) then
+			self.PseudoStateToInstance(listOfMetaModelElements, regionPair)
+		elif (self.oclIsKindOf(ConnectionPointReference)) then 
+			self.ConnectionPointReferenceToInstance(listOfMetaModelElements, regionPair)
+		else
+			self.GeneralVertexToInstance(listOfMetaModelElements, regionPair)
+		endif;
+		
+		var VertexClass := listOfMetaModelElements[Class]->any(name = "Vertex");
+		var VertexInstance := returnInstanceStructure.instances->any(true);
+	
+		var currentParameter := VertexClass.ownedAttribute->any(name = "vertexName");
+		var currentParameterSlot := new Slot(currentParameter, null, VertexInstance);
+		currentParameterSlot.value := new LiteralString(self.name);
+		VertexInstance.slot += currentParameterSlot;			
+		
+		return returnInstanceStructure;
+}
+
+//constructor 
+constructor Slot::Slot(givenDefiningFeature : StructuralFeature, givenValue : InstanceValue, givenOnwingInstance : InstanceSpecification){
+	definingFeature := givenDefiningFeature;
+	value += givenValue;
+	owningInstance := givenOnwingInstance;
+}
+
+constructor InstanceSpecification::InstanceSpecification(givenName : String, givenClassifier : Sequence(Classifier), givenSlots : Sequence(Slot)){
+	name:=givenName;
+	classifier:=givenClassifier;
+	slot:=givenSlots;
+}
+
+constructor Generalization::Generalization(givenClassifier : Classifier){
+	general := givenClassifier;
+	isSubstitutable := true;
+}
+constructor LiteralString::LiteralString(givenName : String){
+	value := givenName;
+}
+constructor LiteralInteger::LiteralInteger(givenID : Integer){
+	value := givenID;
+}
+constructor LiteralBoolean::LiteralBoolean(givenBoolean : Boolean){
+	value := givenBoolean;
+}
+
+constructor InstanceValue::InstanceValue(givenName : String, ginveInstance : InstanceSpecification, givenType : Type){
+	instance := ginveInstance;
+	name := givenName;
+	type := givenType;
+}
+
+constructor Package::Package(givenName : String){
+	name:=givenName;
+}
+
+constructor EAnnotation::EAnnotation(givenName : String, givenReferences : Sequence(EObject)){
+	source:= givenName;
+	_references:= givenReferences;
+}

@@ -1,0 +1,20 @@
+Manifest-Version: 1.0
+Bundle-ManifestVersion: 2
+Bundle-Name: Acceleo Cpp Module Runtime Plug-in
+Bundle-SymbolicName: org.eclipse.umlgen.gen.cpp
+Bundle-Version: 1.0.1.qualifier
+Bundle-Activator: org.eclipse.umlgen.gen.cpp.Activator
+Bundle-Vendor: Eclipse Modeling Project
+Require-Bundle: org.eclipse.core.runtime,
+ org.eclipse.uml2.uml,
+ org.eclipse.acceleo.engine;bundle-version="3.3.0",
+ org.eclipse.m2m.qvt.oml;bundle-version="3.5.0"
+Bundle-RequiredExecutionEnvironment: Java2SE-1.5
+Bundle-ActivationPolicy: lazy
+Eclipse-LazyStart: true
+Export-Package: org.eclipse.umlgen.gen.cpp,
+ org.eclipse.umlgen.gen.cpp.main
+Bundle-ClassPath: .,
+ bin/
+Import-Package: com.google.common.collect
+

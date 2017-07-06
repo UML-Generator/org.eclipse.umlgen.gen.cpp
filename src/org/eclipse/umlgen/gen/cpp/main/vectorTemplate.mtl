@@ -1,0 +1,161 @@
+[comment]
+  Copyright 2016 Daniel Kaminski de Souza and Marcelo Giesteira Campani
+  All rights reserved.  This program and the accompanying materials
+  are made available under the terms of the Eclipse Public License 1.0
+  
+  Any license can be applied to the files generated with this template.
+  
+  author <a href="mailto:dani_kase@yahoo.com.br">Daniel Kaminski de Souza</a>
+  author <a href="mailto:marcelogcampani@gmail.com">Marcelo Giesteira Campani</a>
+[/comment]
+[module vectorTemplate('http://www.eclipse.org/uml2/5.0.0/UML')]
+
+[import org::eclipse::umlgen::gen::cpp::main::common/]
+
+[query public assembleLoadingString(index: Integer) : String = 
+	'itsArray['+index+'] = t'+index+';'
+/]
+[template public fullLoading(amount : Integer)]
+[for (Sequence{1..amount})]
+[assembleLoadingString(i-1)/]
+[/for]
+[/template]
+[template public parameterExpand(amount : Integer)]
+[for (Sequence{1..amount}) separator(', ')]T t[i-1/][/for]
+[/template]
+
+[template public vectorTemplate(modelPkg: Package, pkg : String)]
+	[file(modelPkg.name+'\\'+pkg+'\\'+'vectorTemplate.hpp', false)]
+		[let defString: String = includeSTRING('vectorTemplate')]
+#ifndef [defString/]
+#define [defString/]
+
+//Author: Daniel Kaminski de Souza
+
+#include "PrimitiveTypes.hpp"
+#include <stdint.h>
+[if getProperty('compiler') = 'CODEWARRIOR']
+#include <stdarg.h>
+
+template<class T>
+[else]
+template<typename T>
+[/if]
+class aVector
+{
+protected:
+	T* itsArray;
+public:
+	uint8_t size;
+[if getProperty('compiler') <> 'CODEWARRIOR']
+	template<typename... Values>
+	aVector(const Values&... values)
+	{
+		T tsArray['[]'/] = {values...};
+		size = sizeof...(values);
+		itsArray = new T['[size]'/];
+		for (uint8_t index=0; index< size; index++)
+		{
+			*(itsArray+index) = *(tsArray+index);
+		}
+	}
+[else]
+	aVector()
+	{
+		size = 0;
+		itsArray = nullptr;
+	}
+[for (Sequence{1..getProperty('vectorSize').toInteger()})]
+	aVector([parameterExpand(i)/])
+	{
+		size = [i/];
+		itsArray = new T['[size]'/];
+		[fullLoading(i)/]
+	}
+[/for]
+[/if]
+	virtual ~aVector()
+	{
+		delete['[]'/] itsArray;
+	}
+	void erase()
+	{
+		for (uint8_t index=0; index< size; index++)
+		{
+			delete itsArray['[index]'/];
+		}
+	}
+	T* getArray(void){
+		return itsArray;
+	}
+	T& at(uint8_t index)
+	{
+		return itsArray['[index]'/];
+	}
+	aVector<T> concat(aVector<T> givenVector){
+		uint8_t newSize = size + givenVector.size;
+		T* newArray = new T['[newSize]'/];
+		uint8_t index;
+		for (index=0; index < size; index++)
+		{
+			newArray['[index]'/] = itsArray['[index]'/];
+		}
+		for (; index < newSize; index++)
+		{
+			newArray['[index]'/] = givenVector.itsArray['[index-size]'/];
+		}
+		aVector<T> vectorToReturn;
+		vectorToReturn.itsArray = newArray;
+		vectorToReturn.size = newSize;
+		return vectorToReturn;
+	}
+	ErrorOk insert(uint8_t index, T item){
+		T* newArray = new T['[size+1]'/];
+		if (newArray == nullptr)
+			return error;
+		uint8_t i = 0;
+		do{
+			if(index == i){
+				newArray['[i]'/] = item;
+				break;
+			}
+			newArray['[i]'/] = itsArray['[i]'/];
+			i++;
+		}while(i < size);
+		for (; i< size; i++)
+			newArray['[i+1]'/] = itsArray['[i]'/];
+		delete['[]'/] itsArray;
+		itsArray = newArray;
+		size = size+1;
+		return ok;
+	}
+	T take(uint8_t index){
+		T* newArray;
+		if (size == 1)
+			newArray = nullptr;
+		else
+			newArray = new T['[size-1]'/];
+
+		uint8_t i = 0;
+		T returnItem;
+		do{
+			if(index == i){
+				returnItem = itsArray['[i]'/];
+				break;
+			}
+			newArray['[i]'/] = itsArray['[i]'/];
+			i++;
+		}while(i < size);
+		size = size-1;
+		for (; i< size; i++)
+			newArray['[i]'/] = itsArray['[i+1]'/];
+		delete['[]'/] itsArray;
+		itsArray = newArray;
+		return returnItem;
+	}
+};
+
+#endif //[defString/]
+		[/let]
+	[/file]
+[/template]

@@ -1,0 +1,212 @@
+[comment]
+  Copyright 2016 Daniel Kaminski de Souza and Marcelo Giesteira Campani
+  All rights reserved.  This program and the accompanying materials
+  are made available under the terms of the Eclipse Public License 1.0
+  
+  Any license can be applied to the files generated with this template.
+  
+  author <a href="mailto:dani_kase@yahoo.com.br">Daniel Kaminski de Souza</a>
+  author <a href="mailto:marcelogcampani@gmail.com">Marcelo Giesteira Campani</a>
+[/comment]
+[module classBody('http://www.eclipse.org/uml2/5.0.0/UML')/]
+[import org::eclipse::umlgen::gen::cpp::main::common/]
+[import org::eclipse::umlgen::gen::cpp::main::compositeCreation/]
+[import org::eclipse::umlgen::gen::cpp::main::classSupport/]
+[import org::eclipse::umlgen::gen::cpp::main::propertySupport/]
+
+[template public generateConstructor(ac : Class, identifyier : String)]
+[if identifyier = 'source']
+[ac.constructorProtoForSource(ac.name+'::')/]
+[ac.instantiateComposite(identifyier)/]
+[else]
+   /******************************************
+	************** CONSTRUCTOR ***************
+	******************************************/
+    public: 
+	[ac.constructorProto(identifyier)/][if identifyier = 'template'][ac.instantiateComposite(identifyier)/][/if]
+[/if]
+[/template]
+
+[template public destructorBody(ac : Class)]
+{
+[for (p: Property | ac.getAssociationsToDeclare())]
+	[if p.hasMultipleItems()]
+		[if p.isComposite]
+	[p.propertyListName()/]->erase();
+		[/if]
+	delete [p.propertyListName()/];
+	[else]
+		[if p.isComposite]
+	delete [p.name/];
+		[/if]
+	[/if]
+[/for]
+[let op: Operation = ac.getCustomDestructor()]
+	[op.opaqueBehavior()._body/]
+[/let]
+}
+[/template]
+
+[template public generateDestructor(ac : Class, identifyier : String)]
+[if identifyier = 'source']
+[ac.name/]::~[ac.name/]['()'/]
+[ac.destructorBody()/]
+[else]
+   /******************************************
+	************** DESTRUCTOR ****************
+	******************************************/
+    public: [if ac.needsVirtualDestructor()]virtual [/if]~[ac.name/]['()'/][if identifyier = 'template'][ac.destructorBody()/][/if][identifyier.checkCommaNeeded()/]
+[/if]
+[/template]
+[template public ownedAttributesSection (traceabilityContext: OclAny)]
+   /******************************************
+	*************  OWNED ATTRIBUTES **********
+	******************************************/
+[/template]
+[template public associationsSection (traceabilityContext: OclAny)]
+   /******************************************
+	*************  ASSOCIATIONS **************
+	******************************************/
+[/template]
+[template public operationsSection (traceabilityContext: OclAny)]
+   /******************************************
+	*************  OPERATIONS ****************
+	******************************************/
+[/template]
+
+[query public generateReception(r : Reception, c : Class, identifyier : String) : String =
+	if identifyier = 'source' then
+		if not r.isAbstract then
+			'void '+c.name+'::'+r.behavioralFeatureProtoWithoutReturn()+'\n'+
+			r.receptionBody(c)
+		else
+			''
+		endif
+	else
+		r.receptionComment()+'\n'+
+		'\tpublic: '+r.receptionProto()+
+		if identifyier = 'template' then
+			r.receptionBody(c)
+		else
+			''
+		endif
+		+identifyier.checkCommaNeeded()
+	endif
+/]
+[query public generateOperation(o : Operation, c : Class, identifyier : String) : String =
+	if identifyier = 'source' then
+		if not o.isAbstract then
+			if o.hasThisStereotype('interrupt')then '__interrupt ' else '' endif + o.returnType()+' '+c.name+'::'+o.behavioralFeatureProtoWithoutReturn()+'\n'+
+			o.operationBody()
+		else
+			''
+		endif
+	else
+		o.operationComment()+'\n'+
+		'\tpublic: '+o.operationProto()+
+		if identifyier = 'template' then
+			o.operationBody()
+		else
+			''
+		endif
+		+identifyier.checkCommaNeeded()
+	endif
+/]
+
+	[comment]->union(c.addAllSupers().getAssociationsToDeclare().type.name->asOrderedSet())[/comment]
+[template public generateClass(c : Class, identifyier : String)]
+[if identifyier = 'binding']
+typedef [c.templateBinding.signature.template.eGet('name')/]<[c.templateBinding.parameterSubstitution.actual.eGet('name')/]> [c.name/];
+[else]
+[if identifyier = 'header' or identifyier = 'template']
+/** 
+ * Forward class declarations
+ */
+	[for (className: String | c.getPropertiesToForwardDeclare().type.oclAsType(Class)->select(c | c.templateBinding->isEmpty())->asOrderedSet()->sortedBy(name).name)] [comment]c.getMutualAssociationsToDeclare()[/comment]
+class [className/];
+	[/for]
+
+[if identifyier = 'template']
+template [c.templateSignature()/]
+[/if]
+[if (c.isAbstract)] /*abstract*/ [/if]class [c.name/] [for (superC : Class | c.sortedSuperClasses()) before(':') separator(',')] public [superC.name/][/for][for (interf : Interface | c.getImplementedInterfaces()) before(' implements ') separator(',')] [interf.name/][/for]
+{
+// [protected ('Provide additional header members here for class '+c.name+'.')]
+// [/protected]
+[for (p : Property | sortOwnedAttributes(c.getOwnedAttributes())) before(ownedAttributesSection()+'\n') separator('\n')]
+   /**
+    *  The [p.name/] attribute.
+    */
+	[if p.visibility = VisibilityKind::public]
+	[p.publicProperty()/]
+	[else][comment]if p.visibility <> VisibilityKind::public[/comment]
+		[if p.visibility = VisibilityKind::protected]
+	[p.protectedProperty()/]
+		[else]
+	[p.privateProperty()/]
+		[/if]
+	[/if]
+[/for]
+[comment]****************************** Getters and Setters **********************************[/comment]
+[comment][for (p : Property | c.getAllAttributes())]
+    /**
+     * the [p.name/] getter.
+     * @return the [p.name/].
+     */
+    public [if (p.upper = -1 or p.upper > 1)]List<[p.type.name/]>[else][p.type.name/][/if] get[p.name.toUpperFirst()/]() {
+        return this.[p.name/];
+    }
+
+    /**
+     * the [p.name/] setter.
+     * @param p_[p.name/] the [p.name/] to set.
+     */
+    public void set[p.name.toUpperFirst()/]([if (p.upper = -1 or p.upper > 1)]List<[p.type.name/]>[else][p.type.name/][/if] p_[p.name/]) {
+        this.[p.name/] = p_[p.name/];
+    
+[/for][/comment]
+[comment]*************************************************************************************[/comment]
+[comment]****************************** Associations *****************************************[/comment]
+[comment][for (p : Property | c.getAssociations().memberEnd)]
+    /**
+     * the [p.name/] attribute.
+     */
+[if (p.upper = -1 or p.upper > 1)]
+    private List<[p.type.name/]> [p.name/];
+[else]
+    private [p.type.name/] [p.name/];
+[/if]
+[/for][/comment]
+[comment]*************************************************************************************[/comment]
+[comment]****************************** Associations *****************************************[/comment]
+[for (assoc : String | c.getAssociationsToDeclare().associationDeclaration()) before('\n'+associationsSection()+'\n') separator('\n')]
+[assoc/]
+[/for]
+[else]
+// [protected ('Provide additional source members here for class '+c.name+'.')]
+// [/protected]
+[/if] [comment]Just for Header[/comment]
+[comment]*************************************************************************************[/comment]
+[if c.isConstructorNeeded()]
+
+[c.generateConstructor(identifyier)/]
+[/if]
+[if c.isDestructorNeeded()]
+[c.generateDestructor(identifyier)/]
+[/if]
+[for (o : Operation | c.ownedOperation->select(name <> c.name and name <> '~'+c.name)->sortedBy(name))]
+[o.generateOperation(c, identifyier)/]
+[/for]
+[for (r : Reception | c.ownedReception->sortedBy(name))]
+[r.generateReception(c, identifyier)/]
+[/for]
+[for (interf : Interface | c.getImplementedInterfaces()) before('\n'+operationsSection()+'\n')]
+	[for (o : Operation | interf.ownedOperation->sortedBy(name))]
+[o.generateOperation(c, identifyier)/]
+	[/for]
+[/for]
+[if identifyier = 'header' or identifyier = 'template']
+};
+[/if]
+[/if]
+[/template]
