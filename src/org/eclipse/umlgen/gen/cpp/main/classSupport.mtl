@@ -63,7 +63,7 @@
 						else 
 							''
 						endif
-						+toSeq.name->including(to.name)->sep('\\')
+						+toSeq.name->including(to.name)->sep('/')
 /]
 [query public prepareInclude(to: Class, from: Class) : String =
 	prepareIncludeFromPackage(to, from.getNearestPackage())
@@ -78,11 +78,11 @@
 	->union(c.getListItemsToInclude())
 	->union(c.getAllOperations().ownedParameter->select(op | op.type.oclIsKindOf(Class)).type.oclAsType(Class)).prepareInclude(c)
 	->asOrderedSet()->asSequence()->sortedBy(toString())
-	->including(c.goBackN(1)+'Resources\\PrimitiveTypes')
-	->including(c.goBackN(1)+'Resources\\DataTypes')
-	->including(c.goBackN(1)+'Resources\\Enumerations')
-	->including(c.goBackN(1)+'Resources\\vectorTemplate')
-	->including(c.goBackN(1)+'Resources\\TerminalIO')		]
+	->including(c.goBackN(1)+'Resources/PrimitiveTypes')
+	->including(c.goBackN(1)+'Resources/DataTypes')
+	->including(c.goBackN(1)+'Resources/Enumerations')
+	->including(c.goBackN(1)+'Resources/vectorTemplate')
+	->including(c.goBackN(1)+'Resources/TerminalIO')		]
 	[for (toImport: String | toInclude)]
 [assembleInclude(toImport)/]
 	[/for]

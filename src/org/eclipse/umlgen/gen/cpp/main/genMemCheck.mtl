@@ -12,7 +12,7 @@
 
 
 [template public genMemCheck(modelPkg: Package, pkg : String)]
-	[file(modelPkg.name+'\\'+pkg+'\\'+'MemCheck.hpp', false)]
+	[file(modelPkg.name+'/'+pkg+'/'+'MemCheck.hpp', false)]
 #ifndef MEMCHECK_H
 #define MEMCHECK_H
 
@@ -33,7 +33,7 @@ extern bool activeFlag;
 
 #endif // MEMCHECK_H ///:~
 	[/file]
-	[file(modelPkg.name+'\\'+pkg+'\\'+'MemCheck.cpp', false)]
+	[file(modelPkg.name+'/'+pkg+'/'+'MemCheck.cpp', false)]
 
 #include <cstdio>
 #include <cstdlib>

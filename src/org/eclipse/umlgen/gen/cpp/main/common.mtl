@@ -71,7 +71,7 @@
 	'#include "'+st+'.hpp"'
 /]
 [query public getFullPathFile(cl: Classifier) : String = 
-	cl.getAllPackages().name->sep('\\')+'\\'+cl.name
+	cl.getAllPackages().name->sep('/')+'/'+cl.name
 /]
 [query public getAllPackages(cl: Classifier) : Sequence(Package) = 
 	cl.getNearestPackage().getAllPackagesI()
@@ -201,7 +201,7 @@ invoke('org.eclipse.umlgen.gen.cpp.main.Utility', 'addInclude(java.lang.String)'
 [goBack(cl.getAllPackages()->size()-number)/]
 [/template]
 [template public goBack(number: Integer)]
-[for (Sequence{1..number})]['..\\'/][/for]
+[for (Sequence{1..number})]['..//'/][/for]
 [/template]
 
 [template public packagePath(cl : Classifier)]

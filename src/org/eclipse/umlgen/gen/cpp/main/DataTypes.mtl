@@ -14,7 +14,7 @@
 [import org::eclipse::umlgen::gen::cpp::main::propertySupport/]
 
 [template public generateDataTypes(modelPkg: Package, pkg : String)]
-[file(modelPkg.name+'\\'+pkg+'\\'+'DataTypes'+'.hpp', false)]
+[file(modelPkg.name+'/'+pkg+'/'+'DataTypes'+'.hpp', false)]
 [let defString: String = includeSTRING('DataTypes')]
 #ifndef [defString/]
 #define [defString/]

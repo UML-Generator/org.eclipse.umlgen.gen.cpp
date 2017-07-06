@@ -13,7 +13,7 @@
 [import org::eclipse::umlgen::gen::cpp::main::common/]
 
 [template public generateEnumerations(modelPkg: Package, pkg : String)]
-[file(modelPkg.name+'\\'+pkg+'\\'+'Enumerations'+'.hpp', false)]
+[file(modelPkg.name+'/'+pkg+'/'+'Enumerations'+'.hpp', false)]
 [let defString: String = includeSTRING('Enumerations')]
 #ifndef [defString/]
 #define [defString/]

@@ -25,7 +25,7 @@
 [/template]
 
 [template public vectorTemplate(modelPkg: Package, pkg : String)]
-	[file(modelPkg.name+'\\'+pkg+'\\'+'vectorTemplate.hpp', false)]
+	[file(modelPkg.name+'/'+pkg+'/'+'vectorTemplate.hpp', false)]
 		[let defString: String = includeSTRING('vectorTemplate')]
 #ifndef [defString/]
 #define [defString/]

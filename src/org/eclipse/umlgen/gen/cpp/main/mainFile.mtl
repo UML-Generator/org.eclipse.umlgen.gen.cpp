@@ -227,14 +227,14 @@ Sequence{aCanopyInstance}->spawnInstanceTreeImpl(Sequence{aCanopyInstance})
 	[/for]
 [/let]
 */
-	[file(pkg.name+'\\'+'main.cpp', false)]
+	[file(pkg.name+'/'+'main.cpp', false)]
 			[let tab: String = if (getProperty('memoryLeakTest') = 'ON')then '\t\t' else '\t' endif]
 [if (not getSortedIncludeList()->isEmpty())]
 			[let includeString: String = '#include "' ]
 [getSortedIncludeList()->sep(includeString, '.hpp"\n'+includeString, '.hpp"\n')/][/let]
 [/if]
 [if getProperty('memoryLeakTest') = 'ON']
-[assembleInclude('Resources\\MemCheck')/] // Must appear last![/if]
+[assembleInclude('Resources/MemCheck')/] // Must appear last![/if]
 [if getProperty('compiler') <> 'CODEWARRIOR']
 
 using namespace std;[/if]

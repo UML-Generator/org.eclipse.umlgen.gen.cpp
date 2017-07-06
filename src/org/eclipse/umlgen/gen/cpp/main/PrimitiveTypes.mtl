@@ -13,7 +13,7 @@
 [import org::eclipse::umlgen::gen::cpp::main::common/]
 
 [template public generatePrimitiveTypes(modelPkg: Package, pkg : String)]
-[file(modelPkg.name+'\\'+pkg+'\\'+'PrimitiveTypes'+'.hpp', false)]
+[file(modelPkg.name+'/'+pkg+'/'+'PrimitiveTypes'+'.hpp', false)]
 [let defString: String = includeSTRING('PrimitiveTypes')]
 #ifndef [defString/]
 #define [defString/]
